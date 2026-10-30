@@ -19,7 +19,7 @@ public:
 };
 ```
 
-`UCLASS(Abstract)` 是 UE 的类标记；该类本身没有通过纯虚函数成为 C++ 抽象类。派生的具体玩家角色见 [PlayerCharacter](PlayerCharacter.md)。
+`UCLASS(Abstract)` 是 UE 的类标记；该类本身没有通过纯虚函数成为 C++ 抽象类。当前具体子类包括 [玩家角色](PlayerCharacter.md) 和 [敌人角色](EnemyCharacter.md)。
 
 ## 公共构造设置
 
@@ -33,7 +33,7 @@ GetMesh()->VisibilityBasedAnimTickOption =
 
 ## GAS 接口与 ASC 所在位置
 
-基类实现 `IAbilitySystemInterface`，但 `GetAbilitySystemComponent()` 当前只返回 `nullptr`，也没有创建 ASC。它提供统一接口，真正的取得逻辑由玩家角色重写：从 [PlayerState](../Player/PlayerState.md) 返回 ASC。
+基类实现 `IAbilitySystemInterface`，但 `GetAbilitySystemComponent()` 当前只返回 `nullptr`，也没有创建 ASC。具体子类负责重写：玩家从 [PlayerState](../Player/PlayerState.md) 返回 ASC，敌人返回自身创建的 ASC。
 
 因此，新增角色子类时需要明确 ASC 的创建位置并实现取得逻辑；只继承基类还无法授予或激活能力。
 
@@ -44,6 +44,8 @@ flowchart TD
     base -->|"被继承，并重写 ASC getter"| player["AGAS_PlayerCharacter"]
     base -->|"基类 getter 的默认返回值"| empty["nullptr"]
     player -->|"通过 PlayerState 取得组件"| asc["AGAS_PlayerState.ASC"]
+    base -->|"被继承，并重写 ASC getter"| enemy["AGAS_EnemyCharacter"]
+    enemy -->|"返回自身创建的组件"| enemyAsc["EnemyCharacter.ASC"]
 ```
 
 ## 启动能力数组与授予
@@ -65,11 +67,12 @@ for (const auto& Ability : StartupAbilities)
 }
 ```
 
-`FGameplayAbilitySpec` 描述一次能力授予，`GiveAbility` 将其交给 ASC 管理；这里没有立即激活能力。当前服务端调用点位于玩家角色的 `PossessedBy()`，调用前检查了 `HasAuthority()`。
+`FGameplayAbilitySpec` 描述一次能力授予，`GiveAbility` 将其交给 ASC 管理；该函数没有显式激活调用。当前调用点包括玩家的 `PossessedBy()` 与敌人的 `BeginPlay()`，两处均先初始化 ActorInfo 并检查 `HasAuthority()`，再进入授予函数。
 
 ```mermaid
 flowchart TD
     caller["服务端 PossessedBy：已检查权限并初始化 ActorInfo"] -->|"调用"| startup["GiveStartupAbilities"]
+    enemyCaller["敌人 BeginPlay：已初始化 ActorInfo 并检查权限"] -->|"调用同一基类函数"| startup
     startup -->|"先取得组件"| valid{"ASC 是否有效？"}
     valid -->|"否"| earlyReturn["提前返回"]
     valid -->|"是"| nextAbility{"StartupAbilities 还有下一项？"}
@@ -80,5 +83,7 @@ flowchart TD
 ```
 
 函数自身没有权限检查、空能力类检查和重复授予保护。后续若从其他入口调用，或发生重复占有，需要相应处理；不能假设它是可重复执行且无副作用的初始化函数。
+
+启动数组仍接受 `UGameplayAbility` 的子类，没有强制要求使用新增的 [UGAS_GameplayAbility](../AbilitySystem/GameplayAbility.md)。是否采用自定义能力基类取决于具体资产父类。
 
 参见：[启动能力与激活流程](../AbilitySystem/StartupAbilities.md)。

@@ -2,6 +2,8 @@
 
 本页记录本地 UE 项目已确认的接入条件，便于复习或重新搭建工程。
 
+最近核对日期：2026-10-29。参考目录为 `..\GAS_Acquaintance`；资源清单已同步玩家蓝图目录调整以及新增敌人、动画和通知资产。
+
 ## 引擎、插件与模块
 
 `GAS_Acquaintance.uproject` 声明 `EngineAssociation: "5.6"`，运行时模块名为 `GAS_Acquaintance`，启用了 `GameplayAbilities` 插件。
@@ -16,7 +18,7 @@
 | 依赖 | 当前源码中的用途 |
 | --- | --- |
 | `EnhancedInput` | 输入 Action、Mapping Context、输入组件和本地玩家子系统 |
-| `GameplayAbilities` | ASC、GAS 接口、Gameplay Ability 与 Spec |
+| `GameplayAbilities` | 自定义 ASC 与能力基类、GAS 接口和能力 Spec |
 | `GameplayTags` | 原生标签声明 / 定义、Tag 容器 |
 | `GameplayTasks` | 已列入 GAS 相关模块依赖；当前自定义 C++ 没有编写 Task |
 
@@ -57,9 +59,21 @@ DefaultInputComponentClass=/Script/EnhancedInput.EnhancedInputComponent
 Maps/Map_Main.umap
 Blueprints/
   Game/BP_GAS_Gamemode.uasset
-  Characters/BP_GAS_PlayerCharacter.uasset
+  Characters/
+    Player/
+      BP_GAS_PlayerCharacter.uasset
+      Anim/AM_GAS_Primary_A.uasset
+      Anim/AM_GAS_Primary_B.uasset
+      Anim/Primary_A.uasset
+      Anim/Primary_B.uasset
+    Enemy/
+      BP_Enemy_Melee.uasset
+      BP_Enemy_Ranged.uasset
+      Anim/ABP_Enemy_Melee.uasset
+      Anim/ABP_Enemy_Ranged.uasset
   Player/BP_GAS_PlayerController.uasset
   Player/BP_GAS_PlayerState.uasset
+  Notifies/AN_SendEventToActor.uasset
   Input/
     IMC_Movement.uasset
     IMC_Abilities.uasset
@@ -77,6 +91,20 @@ Blueprints/
 
 `/Game/...` 是 UE 资源路径，对应磁盘上的 `Content/...`。GameMode 的配置路径以 `_C` 结尾，指向蓝图生成类；不要将它当作另一个磁盘文件。
 
+玩家蓝图目前在 `Characters/Player/BP_GAS_PlayerCharacter.uasset`，原笔记的 `Characters/BP_GAS_PlayerCharacter.uasset` 目录已过时。文件位置已确认，但资源重定位后的引用和蓝图父类需在编辑器核验。
+
+## 新增 C++ 入口
+
+以下路径以 `Source/GAS_Acquaintance` 为根，每项均有同名 `.h` / `.cpp`：
+
+| 路径（不含扩展名） | 对应笔记 |
+| --- | --- |
+| `Characters/Enemy/GAS_EnemyCharacter` | [敌人角色](../Characters/EnemyCharacter.md) |
+| `AbilitySystem/GAS_AbilitySystemComponent` | [自定义 ASC](../AbilitySystem/AbilitySystemComponent.md) |
+| `AbilitySystem/Abilities/GAS_GameplayAbility` | [能力基类](../AbilitySystem/GameplayAbility.md) |
+
+事件标签仍在 `GameplayTags/GAS_Tags` 中定义，当前没有自定义 C++ AnimNotify；通知和动画文件的存在及待核验关系见 [Gameplay Event](../AbilitySystem/GameplayEvents.md)。
+
 ## 在编辑器中的核对顺序
 
 ```mermaid
@@ -88,6 +116,8 @@ flowchart TD
     assets -->|"配置核对完成后运行"| movement["验证移动、观察、跳跃"]
     movement -->|"基础输入正常后"| ability["验证三个能力输入"]
     ability -->|"涉及联网行为时"| network["分别观察服务端与客户端"]
+    network -->|"验证敌人分支时"| enemy["核对敌人父类、启动数组、BeginPlay 和复制设置"]
+    enemy -->|"涉及动画事件时"| events["核对动画引用、通知轨道、事件 Tag、目标与接收逻辑"]
 ```
 
 该图是建议的人工核对顺序，不是引擎自动执行流程。

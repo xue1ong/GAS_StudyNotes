@@ -1,34 +1,30 @@
 # Gameplay Tags：用标签查找能力
 
-项目使用原生 Gameplay Tag，为三个能力输入提供稳定的标识。声明位于 `Source/GAS_Acquaintance/GameplayTags/GAS_Tags.h`，定义位于同目录的 `GAS_Tags.cpp`。
+项目使用原生 Gameplay Tag，为三个能力输入提供稳定标识。2026-10-29 核对时，还新增了 `ActivateOnGiven` 与 Primary 事件标签。声明位于 `Source/GAS_Acquaintance/GameplayTags/GAS_Tags.h`，定义位于同目录的 `GAS_Tags.cpp`。
 
 ## 声明与定义
 
-头文件包含 `NativeGameplayTags.h`，在命名空间中声明可被其他文件引用的标签变量：
+头文件包含 `NativeGameplayTags.h`。以下摘录 `GAS_Tags.h` 外层 `GAS_Tags` 内的能力标签命名空间声明，省略空行，不含后面的事件标签声明：
 
 ```cpp
-namespace GAS_Tags
+namespace GAS_Abilities
 {
-    namespace GAS_Abilities
-    {
-        UE_DECLARE_GAMEPLAY_TAG_EXTERN(Primary);
-        UE_DECLARE_GAMEPLAY_TAG_EXTERN(Secondary);
-        UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tertiary);
-    }
+    UE_DECLARE_GAMEPLAY_TAG_EXTERN(ActivateOnGiven);
+    UE_DECLARE_GAMEPLAY_TAG_EXTERN(Primary);
+    UE_DECLARE_GAMEPLAY_TAG_EXTERN(Secondary);
+    UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tertiary);
 }
 ```
 
-以下摘自 `Source/GAS_Acquaintance/GameplayTags/GAS_Tags.cpp`，保留命名空间和三个原生标签定义，省略空行：
+以下摘自 `GAS_Tags.cpp`，仅保留外层 `GAS_Tags` 内部的能力标签命名空间，省略空行：
 
 ```cpp
-namespace GAS_Tags
+namespace GAS_Abilities
 {
-    namespace GAS_Abilities
-    {
-        UE_DEFINE_GAMEPLAY_TAG_COMMENT(Primary, "GAS_Tags.GAS_Abilities.Primary", "Tag for the Primary Ability");
-        UE_DEFINE_GAMEPLAY_TAG_COMMENT(Secondary, "GAS_Tags.GAS_Abilities.Secondary", "Tag for the Secondary Ability");
-        UE_DEFINE_GAMEPLAY_TAG_COMMENT(Tertiary, "GAS_Tags.GAS_Abilities.Tertiary", "Tag for the Tertiary Ability");
-    }
+    UE_DEFINE_GAMEPLAY_TAG_COMMENT(ActivateOnGiven, "GAS_Tags.GAS_Abilities.ActivateOnGiven", "Tag for Abilities that should activate immediately once given.");
+    UE_DEFINE_GAMEPLAY_TAG_COMMENT(Primary, "GAS_Tags.GAS_Abilities.Primary", "Tag for the Primary Ability");
+    UE_DEFINE_GAMEPLAY_TAG_COMMENT(Secondary, "GAS_Tags.GAS_Abilities.Secondary", "Tag for the Secondary Ability");
+    UE_DEFINE_GAMEPLAY_TAG_COMMENT(Tertiary, "GAS_Tags.GAS_Abilities.Tertiary", "Tag for the Tertiary Ability");
 }
 ```
 
@@ -39,6 +35,26 @@ namespace GAS_Tags
 | `GAS_Tags::GAS_Abilities::Primary` | `GAS_Tags.GAS_Abilities.Primary` | `Primary()` |
 | `GAS_Tags::GAS_Abilities::Secondary` | `GAS_Tags.GAS_Abilities.Secondary` | `Secondary()` |
 | `GAS_Tags::GAS_Abilities::Tertiary` | `GAS_Tags.GAS_Abilities.Tertiary` | `Tertiary()` |
+
+## 新增标签：定义与消费分开理解
+
+| C++ 变量 | 注册字符串 | 当前自定义 C++ 的使用情况 |
+| --- | --- | --- |
+| `GAS_Tags::GAS_Abilities::ActivateOnGiven` | `GAS_Tags.GAS_Abilities.ActivateOnGiven` | 已声明和定义，未发现用于检查或自动激活的调用 |
+| `GAS_Tags::GAS_Events::Player::Primary` | `GAS_Tags.GAS_Events.Primary` | 已声明和定义，未发现发送或接收事件的调用 |
+
+`ActivateOnGiven` 的注释描述期望用途，但注册 Tag 不会生成行为。当前自定义 ASC 没有 `OnGiveAbility` 处理，自定义能力也没有授予后激活代码；蓝图是否另行处理需核验。
+
+```mermaid
+flowchart TD
+    definition["原生标签声明与定义"] -->|"登记完整字符串"| tag["ActivateOnGiven 标签可被引用"]
+    grant["BaseCharacters.GiveStartupAbilities"] -->|"当前明确调用"| give["ASC.GiveAbility"]
+    tag -.->|"若实现该约定，应由逻辑读取；当前自定义 C++ 缺少此环节"| consumer["标签检查与激活处理"]
+    give -.->|"是否有蓝图处理授予，待核验"| consumer
+    consumer -.->|"处理逻辑落实后才可能发生，当前未证实"| activate["授予后自动激活"]
+```
+
+事件变量路径中的 `Player` 不在实际标签字符串中。它也不同于能力检索标签 `GAS_Tags.GAS_Abilities.Primary`，详细资源线索见 [Gameplay Event](../AbilitySystem/GameplayEvents.md)。
 
 ## 当前用途：检索已授予的能力
 

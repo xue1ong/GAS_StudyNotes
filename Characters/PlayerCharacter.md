@@ -2,6 +2,8 @@
 
 `AGAS_PlayerCharacter` 继承 `AGAS_BaseCharacters`。它不创建第二个 ASC，而是返回 PlayerState 上的组件，并负责把当前角色设为 AvatarActor。
 
+当前 PlayerState 实际创建的是 `UGAS_AbilitySystemComponent`。玩家的 ASC 获取与回调流程保持不变；与敌人自身持有组件的方式对照见 [敌人角色](EnemyCharacter.md)。
+
 源码：`Source/GAS_Acquaintance/Characters/GAS_PlayerCharacter.h`、`GAS_PlayerCharacter.cpp`。
 
 ## 胶囊体与第三人称摄像机

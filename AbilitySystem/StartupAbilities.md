@@ -1,6 +1,6 @@
 # 启动能力与激活流程
 
-本项目的 GAS 接入分为组件创建、角色信息初始化、能力授予和输入检索激活。它们的前置依赖如下；虚线表示可用条件，不是直接的函数调用。
+本项目的 GAS 接入分为组件创建、角色信息初始化、能力授予和激活入口。下图先展示玩家输入路径；敌人初始化路径见后文对照。虚线表示可用条件，不是直接的函数调用。
 
 ```mermaid
 flowchart TD
@@ -17,6 +17,7 @@ flowchart TD
 
 - `Player/GAS_PlayerState.cpp`：创建、复制 ASC。
 - `Characters/GAS_PlayerCharacter.cpp`：初始化 ActorInfo。
+- `Characters/Enemy/GAS_EnemyCharacter.cpp`：敌人自身 ASC 的创建和 BeginPlay 初始化。
 - `Characters/GAS_BaseCharacters.cpp`：授予启动能力。
 - `Player/GAS_PlayerController.cpp`：按 Tag 尝试激活能力。
 
@@ -24,7 +25,7 @@ flowchart TD
 
 ## 1. 创建组件
 
-PlayerState 构造时创建 `UAbilitySystemComponent`，开启组件复制，设置 `Mixed` 复制模式。角色本身不创建 ASC，而是通过 `GetAbilitySystemComponent()` 转发到 PlayerState。
+玩家的 PlayerState 构造时创建 `UGAS_AbilitySystemComponent`，开启组件复制，设置 `Mixed` 复制模式。玩家角色本身不创建 ASC，而是通过 `GetAbilitySystemComponent()` 转发到 PlayerState。敌人在自身构造函数创建相同自定义类型的 ASC，使用 `Minimal` 模式。
 
 ## 2. 初始化能力上下文
 
@@ -45,6 +46,19 @@ GiveStartupAbilities();
 
 ActorInfo 负责关联 ASC 与当前角色上下文；创建了 ASC 并不意味着已经完成这层关联。两个回调的具体时机见 [玩家角色](../Characters/PlayerCharacter.md)。
 
+敌人使用不同入口，但最终复用相同授予函数：
+
+```mermaid
+flowchart TD
+    begin["敌人 BeginPlay"] -->|"取得自身 ASC，检查有效性后"| init["InitAbilityActorInfo：this / this"]
+    init -->|"初始化后检查权限"| authority{"HasAuthority？"}
+    authority -->|"否"| clientDone["客户端结束本次初始化"]
+    authority -->|"是"| startup["GiveStartupAbilities"]
+    startup -->|"复用基类循环"| give["自身 ASC.GiveAbility"]
+```
+
+完整代码与玩家 / 敌人的参数对照见 [敌人角色](../Characters/EnemyCharacter.md)。
+
 ## 3. 在服务端授予启动能力
 
 `PossessedBy()` 完成初始化后调用 `GiveStartupAbilities()`。函数遍历 `StartupAbilities`，为每个能力类构造 `FGameplayAbilitySpec`，再调用 `GiveAbility()`。
@@ -62,6 +76,8 @@ for (const auto& Ability : StartupAbilities)
 这五行对应总览图的“授予能力”节点；进入循环前，函数已经取得并检查了 `LocalAbilitySystemCom`。
 
 当前代码没有保存 `GiveAbility()` 返回的 Handle，没有设置输入 ID，也没有给 Spec 动态添加输入 Tag。用于后续检索的能力标识需要在能力资产中核对。
+
+新增标签 `GAS_Tags.GAS_Abilities.ActivateOnGiven` 的注释表达“授予后立即激活”的意图，但当前自定义 ASC 与能力基类没有实现对应处理；上述循环只显式调用 `GiveAbility()`，不能把标签名称当作自动激活机制。
 
 业务目录有 `GA_Primary`、`GA_Secondary`、`GA_Teriary` 三项资产，但角色数组是否引用它们尚未通过编辑器确认；数组为空时本次循环不会授予任何能力。
 
@@ -84,7 +100,9 @@ flowchart TD
     matches -->|"逐个尝试，仍需满足激活条件"| attempt["TryActivateAbility"]
 ```
 
-这条路径把输入资源、原生标签和能力实现解耦：Controller 只选择标签，能力资产负责具体行为。当前没有 C++ 能力实现，不能从这条调用链推断 Primary 一定是攻击、Secondary 一定是冲刺等具体效果。
+这条路径把输入资源、原生标签和能力实现解耦：Controller 只选择标签，能力资产负责具体行为。当前已有 C++ 能力基类，但只增加了 `bDrawDebugs` 属性，没有具体技能逻辑，不能从这条调用链推断 Primary 一定是攻击、Secondary 一定是冲刺等具体效果。
+
+新增事件标签和通知资产没有改变上述 Controller 调用；动画与事件的候选连接见 [Gameplay Event 核对入口](GameplayEvents.md)。
 
 ## 能力无响应时按层排查
 

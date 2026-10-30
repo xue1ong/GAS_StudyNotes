@@ -6,19 +6,21 @@
 
 ## 创建与暴露 ASC
 
+摘自 `Source/GAS_Acquaintance/Player/GAS_PlayerState.cpp` 的构造函数，省略原注释，仅调整空白排版：
+
 ```cpp
 AGAS_PlayerState::AGAS_PlayerState()
 {
     SetNetUpdateFrequency(100.f);
 
-    AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(
+    AbilitySystemComponent = CreateDefaultSubobject<UGAS_AbilitySystemComponent>(
         TEXT("AbilitySystemComponent"));
     AbilitySystemComponent->SetIsReplicated(true);
     AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
 }
 ```
 
-成员使用 `TObjectPtr<UAbilitySystemComponent>`，标记为 `VisibleAnywhere`；`GetAbilitySystemComponent()` 直接返回此成员。当前使用引擎提供的 `UAbilitySystemComponent`，没有自定义 ASC 子类。
+成员使用 `TObjectPtr<UAbilitySystemComponent>`，标记为 `VisibleAnywhere`；`GetAbilitySystemComponent()` 直接返回此成员。2026-10-29 核对时，构造函数已改为创建 `UGAS_AbilitySystemComponent`；保存和返回仍使用引擎基类类型。自定义类当前没有新增方法，见 [自定义 ASC](../AbilitySystem/AbilitySystemComponent.md)。
 
 | 设置 | 在项目中的含义 |
 | --- | --- |
@@ -44,7 +46,7 @@ PlayerState 构造函数只负责创建和配置 ASC；与具体角色的关联�
 
 ```mermaid
 flowchart TD
-    state["AGAS_PlayerState"] -->|"构造时创建并持有"| asc["UAbilitySystemComponent"]
+    state["AGAS_PlayerState"] -->|"构造时创建并持有"| asc["UGAS_AbilitySystemComponent：以基类指针暴露"]
     state -->|"作为 OwnerActor 参数"| info["ASC.InitAbilityActorInfo"]
     character["AGAS_PlayerCharacter"] -->|"作为 AvatarActor 参数"| info
     character -->|"getter 访问当前 PlayerState"| state
@@ -54,6 +56,8 @@ flowchart TD
 ```
 
 图中复制分支仅说明 GameplayEffect 复制模式；持有、getter 访问和 ActorInfo 参数关系通过边上的文字区分。
+
+[敌人角色](../Characters/EnemyCharacter.md) 则把同类组件放在角色自身，使用 `Minimal` 模式，OwnerActor / AvatarActor 都是敌人。不要把玩家的 PlayerState 获取路径直接套用到敌人。
 
 ## 排查要点
 
