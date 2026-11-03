@@ -1,102 +1,68 @@
-# Gameplay Tags：用标签查找能力
+# GAS_Tags.h / GAS_Tags.cpp
 
-项目使用原生 Gameplay Tag，为三个能力输入提供稳定标识。2026-10-29 核对时，还新增了 `ActivateOnGiven` 与 Primary 事件标签。声明位于 `Source/GAS_Acquaintance/GameplayTags/GAS_Tags.h`，定义位于同目录的 `GAS_Tags.cpp`。
+这两个文件不定义 UObject 类。`GAS_Tags.h` 通过 `NativeGameplayTags.h` 声明原生标签变量，`GAS_Tags.cpp` 在相同命名空间内定义完整字符串。核对日期：2026-11-03。
 
-## 声明与定义
+源码目录：`Source/GAS_Acquaintance/GameplayTags`。
 
-头文件包含 `NativeGameplayTags.h`。以下摘录 `GAS_Tags.h` 外层 `GAS_Tags` 内的能力标签命名空间声明，省略空行，不含后面的事件标签声明：
+## GAS_Abilities：能力标识与自动激活约定
+
+| C++ 变量（前缀 GAS_Tags::） | 完整注册字符串 | 当前 C++ 消费位置 |
+| --- | --- | --- |
+| `GAS_Abilities::ActivateOnGiven` | `GAS_Tags.GAS_Abilities.ActivateOnGiven` | ASC.HandleAutoActivateAbility 精确匹配 |
+| `GAS_Abilities::Primary` | `GAS_Tags.GAS_Abilities.Primary` | PlayerController.Primary |
+| `GAS_Abilities::Secondary` | `GAS_Tags.GAS_Abilities.Secondary` | PlayerController.Secondary |
+| `GAS_Abilities::Tertiary` | `GAS_Tags.GAS_Abilities.Tertiary` | PlayerController.Tertiary |
+| `GAS_Abilities::Enemy::HitReact` | `GAS_Tags.GAS_Abilities.Enemy.HitReact` | 已注册；自定义 C++ 没有直接引用该变量的调用 |
+
+`ActivateOnGiven` 是 ASC 使用的约定，能力资产需在自身 AssetTags 中持有该标签才会匹配。其检查代码归入 [UGAS_AbilitySystemComponent](../AbilitySystem/AbilitySystemComponent.md)。
+
+## GAS_Events：事件标识
+
+| C++ 变量（前缀 GAS_Tags::） | 完整注册字符串 |
+| --- | --- |
+| `GAS_Events::Player::Primary` | `GAS_Tags.GAS_Events.Primary` |
+| `GAS_Events::Enemy::HitReact` | `GAS_Tags.GAS_Events.Enemy.HitReact` |
+
+摘自 `GAS_Tags.cpp`，仅保留外层 `GAS_Tags` 内部 `GAS_Events::Player` 的完整命名空间定义：
 
 ```cpp
-namespace GAS_Abilities
+namespace Player
 {
-    UE_DECLARE_GAMEPLAY_TAG_EXTERN(ActivateOnGiven);
-    UE_DECLARE_GAMEPLAY_TAG_EXTERN(Primary);
-    UE_DECLARE_GAMEPLAY_TAG_EXTERN(Secondary);
-    UE_DECLARE_GAMEPLAY_TAG_EXTERN(Tertiary);
+    UE_DEFINE_GAMEPLAY_TAG_COMMENT(Primary, "GAS_Tags.GAS_Events.Primary", "Tag for the Player Primary Event");
 }
 ```
 
-以下摘自 `GAS_Tags.cpp`，仅保留外层 `GAS_Tags` 内部的能力标签命名空间，省略空行：
+这里定义本身只有四行，不填充无关代码。C++ 命名空间含 `Player`，实际注册字符串不含 `.Player`。事件 Primary 与能力 Primary 是不同标签；Enemy.HitReact 的能力和事件字符串也不同。
+
+当前自定义 C++ 没有发送或等待上述 Gameplay Event 的代码。事件标签注册不会自动建立发送者、目标或接收者；资源关系见 [事件关系索引](../AbilitySystem/GameplayEvents.md)。
+
+## 声明与定义的对应方式
+
+头文件使用 `UE_DECLARE_GAMEPLAY_TAG_EXTERN`，源文件使用 `UE_DEFINE_GAMEPLAY_TAG_COMMENT`，定义保持相同命名空间。以下摘自 `GAS_Tags.cpp` 的 `GAS_Abilities::Enemy` 命名空间，保留该命名空间定义：
 
 ```cpp
-namespace GAS_Abilities
+namespace Enemy
 {
-    UE_DEFINE_GAMEPLAY_TAG_COMMENT(ActivateOnGiven, "GAS_Tags.GAS_Abilities.ActivateOnGiven", "Tag for Abilities that should activate immediately once given.");
-    UE_DEFINE_GAMEPLAY_TAG_COMMENT(Primary, "GAS_Tags.GAS_Abilities.Primary", "Tag for the Primary Ability");
-    UE_DEFINE_GAMEPLAY_TAG_COMMENT(Secondary, "GAS_Tags.GAS_Abilities.Secondary", "Tag for the Secondary Ability");
-    UE_DEFINE_GAMEPLAY_TAG_COMMENT(Tertiary, "GAS_Tags.GAS_Abilities.Tertiary", "Tag for the Tertiary Ability");
+    UE_DEFINE_GAMEPLAY_TAG_COMMENT(HitReact, "GAS_Tags.GAS_Abilities.Enemy.HitReact", "Tag for the Enemy HitReact Ability");
 }
 ```
 
-该定义位于与声明相同的命名空间内。C++ 的 `::` 表示命名空间访问，标签字符串中的 `.` 表示标签层级，两者不能混写。
+C++ 中的 `::` 用于访问变量，字符串中的 `.` 表示标签层级。定义标签的文件只负责标识，行为由消费它的类承担。
 
-| C++ 变量 | 完整 Tag 字符串 | Controller 入口 |
-| --- | --- | --- |
-| `GAS_Tags::GAS_Abilities::Primary` | `GAS_Tags.GAS_Abilities.Primary` | `Primary()` |
-| `GAS_Tags::GAS_Abilities::Secondary` | `GAS_Tags.GAS_Abilities.Secondary` | `Secondary()` |
-| `GAS_Tags::GAS_Abilities::Tertiary` | `GAS_Tags.GAS_Abilities.Tertiary` | `Tertiary()` |
-
-## 新增标签：定义与消费分开理解
-
-| C++ 变量 | 注册字符串 | 当前自定义 C++ 的使用情况 |
-| --- | --- | --- |
-| `GAS_Tags::GAS_Abilities::ActivateOnGiven` | `GAS_Tags.GAS_Abilities.ActivateOnGiven` | 已声明和定义，未发现用于检查或自动激活的调用 |
-| `GAS_Tags::GAS_Events::Player::Primary` | `GAS_Tags.GAS_Events.Primary` | 已声明和定义，未发现发送或接收事件的调用 |
-
-`ActivateOnGiven` 的注释描述期望用途，但注册 Tag 不会生成行为。当前自定义 ASC 没有 `OnGiveAbility` 处理，自定义能力也没有授予后激活代码；蓝图是否另行处理需核验。
+## 标签与所属类的调用关系
 
 ```mermaid
 flowchart TD
-    definition["原生标签声明与定义"] -->|"登记完整字符串"| tag["ActivateOnGiven 标签可被引用"]
-    grant["BaseCharacters.GiveStartupAbilities"] -->|"当前明确调用"| give["ASC.GiveAbility"]
-    tag -.->|"若实现该约定，应由逻辑读取；当前自定义 C++ 缺少此环节"| consumer["标签检查与激活处理"]
-    give -.->|"是否有蓝图处理授予，待核验"| consumer
-    consumer -.->|"处理逻辑落实后才可能发生，当前未证实"| activate["授予后自动激活"]
+    definitions["GAS_Tags.cpp：标签定义"] -->|"提供 Primary / Secondary / Tertiary 变量"| controller["AGAS_PlayerController"]
+    controller -->|"转为单标签容器并传入"| query["ASC.TryActivateAbilitiesByTag"]
+    granted["ASC 已授予能力的 AssetTags"] -->|"提供匹配候选"| query
+    definitions -->|"提供 ActivateOnGiven 变量"| handler["自定义 ASC.HandleAutoActivateAbility"]
+    granted -->|"逐标签执行 MatchesTagExact"| handler
+    handler -->|"命中约定标签时按 Spec.Handle"| activate["TryActivateAbility"]
+    definitions -->|"注册两个独立的事件标识"| events["Player.Primary / Enemy.HitReact"]
+    events -.->|"动画通知与能力监听如何使用，待核验"| assets["蓝图事件逻辑"]
 ```
 
-事件变量路径中的 `Player` 不在实际标签字符串中。它也不同于能力检索标签 `GAS_Tags.GAS_Abilities.Primary`，详细资源线索见 [Gameplay Event](../AbilitySystem/GameplayEvents.md)。
+UE 5.6 的输入检索路径使用 `Spec.Ability->GetAssetTags().HasAll(...)`；自动激活路径则逐标签执行 `MatchesTagExact()`。两条路径的入口和匹配方式不同。能力标识属性在本机引擎 `GameplayAbility.h` 的显示名为 `AssetTags (Default AbilityTags)`，不要与激活所需、激活阻止或激活附加标签混淆。
 
-## 当前用途：检索已授予的能力
-
-```cpp
-ASC->TryActivateAbilitiesByTag(AbilityTag.GetSingleTagContainer());
-```
-
-Controller 把一个标签转换成 `FGameplayTagContainer`，让 ASC 尝试激活匹配的已授予能力。标签本身既不是能力类，也不会自动执行能力逻辑。
-
-本机 UE 5.6 的 `AbilitySystemComponent_Abilities.cpp` 中，该 API 使用 `Spec.Ability->GetAssetTags().HasAll(GameplayTagContainer)` 检索能力，再逐个尝试激活。它不是“找到一个就停止”；多个能力具有匹配标签时可能有多个候选。项目当前每次只传一个标签。
-
-在 UE 5.6 能力蓝图中，应核对用于能力自身标识的标签。引擎 `GameplayAbility.h` 的属性显示名为 `AssetTags (Default AbilityTags)`，提供 `GetAssetTags()` 访问接口；旧教程常称 `Ability Tags`。不要把它和激活所需标签、阻止标签或激活时附加给持有者的标签混为一谈。当前 C++ 没有给能力 Spec 写入额外的动态输入标签。
-
-```mermaid
-flowchart TD
-    header["GAS_Tags.h：声明原生 Tag 变量"] -->|"由同命名空间中的 cpp 提供定义"| definition["GAS_Tags.cpp：绑定完整 Tag 字符串"]
-    definition -->|"Controller 回调引用对应变量"| callback["Primary / Secondary / Tertiary"]
-    callback -->|"传入标签"| container["GetSingleTagContainer"]
-    container -->|"作为查询条件"| query["ASC.TryActivateAbilitiesByTag"]
-    granted["ASC 中已授予的能力 Spec"] -->|"提供能力类的 AssetTags"| query
-    asset["能力蓝图标识标签"] -.->|"应配置对应 Tag，实际值待编辑器核验"| granted
-    query -->|"HasAll 匹配，并按标签要求筛选"| candidates["匹配能力候选"]
-    candidates -->|"逐个调用，仍需满足激活条件"| activate["TryActivateAbility"]
-```
-
-Tag 定义与能力授予是两条独立的前置条件，最终在 ASC 检索时汇合；定义标签不会自动把能力加入 ASC。
-
-业务目录存在 `GA_Primary`、`GA_Secondary`、`GA_Teriary` 三项资产；它们是否已配置对应标签，需要在编辑器确认。尤其第三项**资产文件名**为 `GA_Teriary`，原生 Tag 则拼作 `Tertiary`；激活依据是标签匹配，不是文件名匹配。
-
-## 扩展一个能力输入时
-
-```mermaid
-flowchart TD
-    tag["新增标签：h 声明，cpp 定义完整字符串"] -->|"作为能力检索标识"| ability["在能力蓝图配置 AssetTags"]
-    ability -->|"把该能力类加入"| startup["角色 StartupAbilities"]
-    startup -->|"运行时由服务端授予"| granted["ASC 中可检索的能力 Spec"]
-    tag -->|"作为 Controller 的激活参数"| callback["新增能力输入回调"]
-    action["创建 Input Action 与 IMC 映射"] -->|"在 Controller 默认值中引用并 BindAction"| callback
-    callback -->|"输入触发时按 Tag 查询"| query["TryActivateAbilitiesByTag"]
-    granted -->|"提供查询候选"| query
-```
-
-这些是后续扩展步骤，当前源码只定义了表中的三个入口。
-
-参见：[PlayerController](../Player/PlayerController.md)、[启动能力与激活流程](../AbilitySystem/StartupAbilities.md)。
+具体输入逻辑见 [AGAS_PlayerController](../Player/PlayerController.md)，能力实现见 [UGAS_Primary](../AbilitySystem/Primary.md) 和 [UGAS_HitReact](../AbilitySystem/HitReact.md)。

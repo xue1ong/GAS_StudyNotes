@@ -1,10 +1,24 @@
-# PlayerController：输入与能力激活入口
+# AGAS_PlayerController
 
 `AGAS_PlayerController` 继承 `APlayerController`，把 Enhanced Input 事件转换成角色移动、视角更新、跳跃和按 Gameplay Tag 激活能力的调用。
 
 源码：`Source/GAS_Acquaintance/Player/GAS_PlayerController.h`、`GAS_PlayerController.cpp`。
 
-## 输入配置与初始化
+## 头文件：成员与函数
+
+本类没有自定义构造函数。以下输入成员均为 private、EditDefaultsOnly；InputMappingContexts 的类型为 `TArray<TObjectPtr<UInputMappingContext>>`，六个 Action 成员为 `TObjectPtr<UInputAction>`。
+
+| 可见性 | 函数声明 | 职责 |
+| --- | --- | --- |
+| protected override | `SetupInputComponent()` | 注册上下文、转型输入组件、绑定事件 |
+| private | `Jump()` / `StopJumping()` | 当前 Character 跳跃 / 停止跳跃 |
+| private | `Move(const FInputActionValue&)` | 相对控制器水平朝向移动 |
+| private | `Look(const FInputActionValue&)` | 更新控制器 Yaw / Pitch |
+| private | `Primary()` / `Secondary()` / `Tertiary()` | 选择对应能力 Tag |
+| private | `ActivateAbility(const FGameplayTag&) const` | 从当前 Pawn 取得 ASC 并按 Tag 尝试激活 |
+
+
+## SetupInputComponent：成员引用与输入初始化
 
 所有输入资源属性均为 `EditDefaultsOnly`，需要在类默认值中配置：
 
@@ -51,7 +65,7 @@ Context 数组为空时仍会继续转型和绑定；图中“遍历结束”也
 
 `Config/DefaultInput.ini` 已指定 `EnhancedPlayerInput` 和 `EnhancedInputComponent`。当前 C++ 没有逐项检查 Context / Action 是否为空，编辑器赋值是排查输入无响应的重点。
 
-## 输入事件与回调
+## SetupInputComponent：事件绑定
 
 | Action | 事件 | 回调 |
 | --- | --- | --- |
@@ -61,11 +75,11 @@ Context 数组为空时仍会继续转型和绑定；图中“遍历结束”也
 | Look | `Triggered` | `Look(Value)` |
 | Primary / Secondary / Tertiary | `Started` | 各自的能力入口 |
 
-源码没有为 Jump 绑定 `Canceled`，也没有为能力输入绑定松开事件或持续按住事件。需要蓄力、引导或能力内等待松开的交互时，应另外设计输入传递逻辑。
+源码没有为 Jump 绑定 `Canceled`，也没有为能力输入绑定松开事件或持续按住事件。当前输入处理不包含能力的按住、松开和取消事件转发。
 
-## 移动、观察与跳跃
+## Move、Look、Jump、StopJumping
 
-`Move()` 读取 `FVector2D`，使用 Controller 的 Yaw 构造水平旋转，从旋转矩阵取得 X 轴前向和 Y 轴右向：
+`Move()` 读取 `FVector2D`，使用 Controller 的 Yaw 构造水平旋转，从旋转矩阵取得 X 轴前向和 Y 轴右向。以下摘自 `GAS_PlayerController.cpp` 的 `Move()`，仅保留方向计算与移动提交部分：
 
 ```cpp
 const FRotator YawRotation(0.f, GetControlRotation().Yaw, 0.f);
@@ -97,7 +111,7 @@ flowchart TD
 
 移动和跳跃节点均以取得有效 Pawn / Character 为前提。能力分支的 ASC 查找与标签匹配详见 [完整激活流程](../AbilitySystem/StartupAbilities.md)。
 
-## 按 Tag 激活能力
+## Primary、Secondary、Tertiary 与 ActivateAbility
 
 三个能力回调仅选择标签，例如 `Primary()` 调用 `ActivateAbility(GAS_Tags::GAS_Abilities::Primary)`，之后复用同一个函数。
 

@@ -1,75 +1,57 @@
 # GAS_StudyNotes
 
-基于参考 UE 项目 `..\GAS_Acquaintance` 的 GAS 学习笔记。最近核对日期：2026-10-29；项目声明的引擎版本为 **Unreal Engine 5.6**。
+按参考项目 `..\GAS_Acquaintance` 当前类文件组织的 GAS 学习笔记。核对日期：2026-11-03；项目声明引擎版本：**Unreal Engine 5.6**。
 
-## 阅读顺序
+## 类文件索引
 
-1. [项目配置与资源入口](Game/ProjectSetup.md)：插件、模块、地图、输入配置。
-2. [游戏模式](Game/GameMode.md)：GameMode 如何将玩家相关类接起来。
-3. [角色基类](Characters/CharacterBase.md)：接口、公共设置、启动能力数组。
-4. [PlayerState](Player/PlayerState.md)：创建和复制 Ability System Component（ASC）。
-5. [玩家角色](Characters/PlayerCharacter.md)：取得 ASC，初始化 OwnerActor / AvatarActor。
-6. [Gameplay Tags](Tags/GameplayTags.md)：能力检索标签、ActivateOnGiven 与事件标签的边界。
-7. [PlayerController](Player/PlayerController.md)：输入绑定、移动与按 Tag 激活能力。
-8. [启动能力与激活流程](AbilitySystem/StartupAbilities.md)：串联完整调用链与排查方法。
-9. [敌人角色](Characters/EnemyCharacter.md)：自身持有 ASC，BeginPlay 初始化，Minimal 复制模式。
-10. [自定义 ASC](AbilitySystem/AbilitySystemComponent.md)：玩家与敌人共用的组件类型及职责划分。
-11. [能力基类](AbilitySystem/GameplayAbility.md)：共用调试属性、能力类与 Spec 的关系。
-12. [动画与 Gameplay Event](AbilitySystem/GameplayEvents.md)：事件标签、通知与动画资源的核对入口。
+下表路径以 `Source/GAS_Acquaintance` 为根；每个类均有同名 `.h` / `.cpp`。各类页面分别说明头文件中的继承、成员和函数，以及源文件的实现。
 
-## 项目结构与职责
-
-| 对象 | 项目中的类型 | 当前职责 |
+| 类文件 | 类 | 笔记 |
 | --- | --- | --- |
-| GameMode | `BP_GAS_Gamemode` 资产 | 被项目配置选为默认 GameMode；玩家类的实际赋值需在编辑器核验 |
-| 角色基类 | `AGAS_BaseCharacters` | 实现 GAS 接口入口，保存并授予启动能力 |
-| 玩家角色 | `AGAS_PlayerCharacter` | 摄像机、取得 PlayerState 的 ASC、初始化能力上下文 |
-| 敌人角色 | `AGAS_EnemyCharacter` | 自身持有 ASC，各端 BeginPlay 初始化，服务端授予能力 |
-| 玩家状态 | `AGAS_PlayerState` | 持有可复制的 ASC |
-| 玩家控制器 | `AGAS_PlayerController` | Enhanced Input 输入处理与能力激活入口 |
-| 自定义组件 | `UGAS_AbilitySystemComponent` | 玩家与敌人共用的 ASC 子类，当前未增加自定义方法 |
-| 能力基类 | `UGAS_GameplayAbility` | 提供默认关闭的 `bDrawDebugs` 属性 |
-| 原生标签 | `GAS_Tags::GAS_Abilities`、`GAS_Events` | 三个输入检索标签，以及自动激活意图和事件标签定义 |
+| `Characters/GAS_BaseCharacters` | `AGAS_BaseCharacters` | [接口、构造设置与启动能力数组](Characters/CharacterBase.md) |
+| `Characters/GAS_PlayerCharacter` | `AGAS_PlayerCharacter` | [摄像机、ASC 访问与两端初始化](Characters/PlayerCharacter.md) |
+| `Characters/Enemy/GAS_EnemyCharacter` | `AGAS_EnemyCharacter` | [自身 ASC、BeginPlay 与服务端授予](Characters/EnemyCharacter.md) |
+| `Player/GAS_PlayerState` | `AGAS_PlayerState` | [玩家 ASC 的创建与复制设置](Player/PlayerState.md) |
+| `Player/GAS_PlayerController` | `AGAS_PlayerController` | [输入成员、绑定与能力激活](Player/PlayerController.md) |
+| `AbilitySystem/GAS_AbilitySystemComponent` | `UGAS_AbilitySystemComponent` | [授予回调、复制回调与自动激活检查](AbilitySystem/AbilitySystemComponent.md) |
+| `AbilitySystem/Abilities/GAS_GameplayAbility` | `UGAS_GameplayAbility` | [公共调试属性](AbilitySystem/GameplayAbility.md) |
+| `AbilitySystem/Abilities/Player/GAS_Primary` | `UGAS_Primary` | [球形重叠查询与调试绘制](AbilitySystem/Primary.md) |
+| `AbilitySystem/Abilities/Enemy/GAS_HitReact` | `UGAS_HitReact` | [类声明、继承及实现范围](AbilitySystem/HitReact.md) |
+
+## 非类文件与关系索引
+
+| 文件 / 范围 | 笔记 |
+| --- | --- |
+| `GameplayTags/GAS_Tags.h/.cpp` 命名空间 | [原生标签声明、定义与消费位置](Tags/GameplayTags.md) |
+| `.uproject`、Build / Target、`Config` 和业务资源 | [配置文件与资源索引](Game/ProjectSetup.md) |
+| `BP_GAS_Gamemode` 蓝图及默认配置 | [GameMode 配置关系](Game/GameMode.md) |
+| 角色、PlayerState、ASC 与 Controller | [跨类授予及激活关系](AbilitySystem/StartupAbilities.md) |
+| 标签、能力类、动画与通知资产 | [事件关系索引](AbilitySystem/GameplayEvents.md) |
+
+## 类间职责关系
 
 ```mermaid
 flowchart TD
-    subgraph serverSide["服务端：初始化并授予"]
-        playerState["PlayerState"] -->|"构造时创建并持有"| serverAsc["ASC"]
-        possessed["PlayerCharacter.PossessedBy"] -->|"ASC 有效且拥有权限"| serverInfo["InitAbilityActorInfo"]
-        serverAsc -->|"提供待初始化的组件"| serverInfo
-        serverInfo -->|"初始化后调用"| startup["GiveStartupAbilities"]
-        startup -->|"遍历能力类并构造 Spec"| give["ASC.GiveAbility"]
-    end
-    subgraph clientSide["客户端：初始化与本地输入"]
-        replicated["OnRep_PlayerState"] -->|"引用复制就绪且 ASC 有效"| clientInfo["InitAbilityActorInfo"]
-        input["本地输入"] -->|"Enhanced Input 事件"| controller["PlayerController"]
-        controller -->|"通过当前 Pawn 的 GAS 接口查找"| character["PlayerCharacter"]
-        character -->|"返回 PlayerState 持有的组件"| localAsc["PlayerState.ASC"]
-        controller -->|"传入能力 Tag 容器"| activate["TryActivateAbilitiesByTag"]
-        localAsc -->|"作为调用目标"| activate
-        clientInfo -->|"为本端激活建立角色上下文"| localAsc
-    end
+    base["AGAS_BaseCharacters"] -->|"被继承，共用 StartupAbilities 和授予函数"| player["AGAS_PlayerCharacter"]
+    base -->|"被继承，共用授予函数"| enemy["AGAS_EnemyCharacter"]
+    state["AGAS_PlayerState"] -->|"创建并持有，Mixed"| playerAsc["玩家 UGAS_AbilitySystemComponent"]
+    player -->|"getter 转发到 PlayerState"| playerAsc
+    enemy -->|"创建并持有，Minimal"| enemyAsc["敌人 UGAS_AbilitySystemComponent"]
+    player -->|"服务端 PossessedBy：初始化后调用"| grant["GiveStartupAbilities"]
+    enemy -->|"BeginPlay：各端初始化，服务端调用"| grant
+    grant -->|"构造 Spec 后调用 GiveAbility"| callback["自定义 ASC.OnGiveAbility"]
+    callback -->|"精确匹配 ActivateOnGiven 时"| auto["TryActivateAbility"]
+    replicated["客户端 ASC.OnRep_ActivateAbilities"] -->|"列表锁内逐项执行同一标签检查"| auto
+    controller["AGAS_PlayerController"] -->|"当前 Pawn 接口返回玩家 ASC，传入输入 Tag"| byTag["TryActivateAbilitiesByTag"]
+    playerAsc -->|"提供已授予的能力候选"| byTag
 ```
 
-图中服务端授予和客户端本地输入分别展示各自入口，不表示两个回调按固定跨端顺序执行。客户端能力可用还依赖 GAS 复制和能力网络设置，细节见各专题。
+图中的回调分别对应本端授予和客户端能力列表复制，不表示服务端与客户端存在固定完成顺序。自动激活是尝试调用，仍受能力激活条件、上下文和网络设置约束。
 
-玩家与敌人共用组件类型和基类授予函数，但初始化入口及 ASC 持有位置不同：
+## 内容依据
 
-```mermaid
-flowchart TD
-    custom["UGAS_AbilitySystemComponent"] -->|"由 PlayerState 创建，Mixed"| playerAsc["玩家 ASC：Owner 为 PlayerState，Avatar 为玩家角色"]
-    custom -->|"由 EnemyCharacter 创建，Minimal"| enemyAsc["敌人 ASC：Owner 与 Avatar 都为自身"]
-    player["玩家：服务端 PossessedBy"] -->|"初始化玩家 ASC 后调用"| startup["BaseCharacters.GiveStartupAbilities"]
-    enemy["敌人：BeginPlay"] -->|"初始化自身 ASC，检查服务端权限后调用"| startup
-    startup -->|"取得各自 ASC，遍历能力类并构造 Spec"| grant["GiveAbility：授予各自的启动能力"]
-```
+代码以参考项目的 `.h` / `.cpp` 为准，配置以 `.uproject` / `.ini` 为准。短代码注明源文件、函数与节选范围；跨类页面只索引关系，具体函数归入所属类说明。
 
-## 笔记范围
+资源路径已核对文件存在；本次没有通过 UE 编辑器核验蓝图父类、默认数组、事件图和动画通知。未核验的关系以虚线标注。当前业务能力资源为 `GA_GAS_Primary`、`GA_Secondary`、`GA_Teriary` 和 `GA_GAS_HitReact`，其中 `GA_Teriary` 是实际文件拼写。
 
-文中代码和数值来自 `Source/GAS_Acquaintance`、`Config` 和 `.uproject`。源码路径默认相对于 UE 项目根目录。代码片段只摘取相关部分，完整逻辑以源文件为准。
-
-已确认业务目录存在三项能力资产 `GA_Primary`、`GA_Secondary`、`GA_Teriary`（第三项文件名确实如此）。本次未在 UE 编辑器内检查 `.uasset` / `.umap` 的内部设置，因此不将资源存在等同于引用、标签或事件图已配置正确。
-
-本轮还确认了敌人、动画和通知资产的存在，见 [资源目录](Game/ProjectSetup.md)。玩家角色蓝图当前位于 `Blueprints/Characters/Player`，已同步更新笔记中的旧目录。
-
-目前自定义 C++ 覆盖玩家与敌人的 GAS 接入、启动能力授予、输入激活入口及能力调试属性；没有发现自定义 AttributeSet、GameplayEffect、伤害结算、UI 控制或 Gameplay Event 发送逻辑。`ActivateOnGiven` 当前只有标签定义，尚不能认定已实现授予即激活。
+源码涵盖自动激活检查与球形查询，但没有自定义 AttributeSet、GameplayEffect、伤害结算、UI 控制或 Gameplay Event 发送实现。球形查询的存在不等于伤害或受击链路已经完成。

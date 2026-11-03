@@ -1,10 +1,20 @@
-# 敌人角色：自身持有 ASC
+# AGAS_EnemyCharacter
 
 `AGAS_EnemyCharacter` 继承 `AGAS_BaseCharacters`，与玩家复用启动能力授予函数，但将 ASC 放在敌人角色自身，不从 PlayerState 获取。
 
-源码：`Source/GAS_Acquaintance/Characters/Enemy/GAS_EnemyCharacter.h`、`GAS_EnemyCharacter.cpp`。核对日期：2026-10-29。
+源码：`Source/GAS_Acquaintance/Characters/Enemy/GAS_EnemyCharacter.h`、`GAS_EnemyCharacter.cpp`。核对日期：2026-11-03。
 
-## 创建组件与复制设置
+## 头文件：成员与函数
+
+| 可见性 | 声明 | 职责 |
+| --- | --- | --- |
+| public | `AGAS_EnemyCharacter()` | 创建自定义 ASC，启用复制并设置 Minimal |
+| public override | `GetAbilitySystemComponent() const` | 返回自身组件 |
+| protected override | `BeginPlay()` | 各端初始化，权威端调用基类授予函数 |
+| private | `TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent` | VisibleAnywhere；以基类类型保存自定义组件 |
+
+
+## AGAS_EnemyCharacter：组件与复制设置
 
 摘自 `GAS_EnemyCharacter.cpp` 的构造函数，省略空行，保留完整函数逻辑：
 
@@ -52,7 +62,7 @@ flowchart TD
     spec -->|"将能力描述交给组件"| grant["敌人自身 ASC.GiveAbility"]
 ```
 
-当前流程中没有能力激活调用；启动数组用于授予，不等于自动发动攻击。
+`BeginPlay()` 没有显式调用能力激活 API；其授予会进入 [自定义 ASC](../AbilitySystem/AbilitySystemComponent.md) 的 `OnGiveAbility()`，匹配 ActivateOnGiven 的能力会被尝试激活。是否发动具体攻击还取决于能力资产和激活结果。
 
 ## 与玩家角色对照
 
@@ -73,7 +83,7 @@ flowchart TD
 
 已确认以下文件存在于 `Content/GAS_Acquaintance/Blueprints/Characters/Enemy`：
 
-- `BP_Enemy_Melee.uasset`、`BP_Enemy_Ranged.uasset`。
+- `BP_GAS_EnemyBase.uasset`、`BP_Enemy_Melee.uasset`、`BP_Enemy_Ranged.uasset`。
 - `Anim/ABP_Enemy_Melee.uasset`、`Anim/ABP_Enemy_Ranged.uasset`。
 
 这些是资源入口。蓝图是否派生自该 C++ 类、填入哪些启动能力、是否设置 Actor 复制及动画类，需要在编辑器核验。组件的 `SetIsReplicated(true)` 不能单独作为整套联网行为已验证的依据。

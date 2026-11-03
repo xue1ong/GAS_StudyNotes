@@ -1,10 +1,19 @@
-# PlayerState：持有能力系统组件
+# AGAS_PlayerState
 
 `AGAS_PlayerState` 继承 `APlayerState` 并实现 `IAbilitySystemInterface`。项目把 ASC 放在 PlayerState 上，角色通过接口访问它。
 
 源码：`Source/GAS_Acquaintance/Player/GAS_PlayerState.h`、`GAS_PlayerState.cpp`。
 
-## 创建与暴露 ASC
+## 头文件：成员与函数
+
+| 可见性 | 声明 | 职责 |
+| --- | --- | --- |
+| public | `AGAS_PlayerState()` | 创建 ASC，设置网络更新参数与复制模式 |
+| public override | `GetAbilitySystemComponent() const` | 通过 GAS 接口返回组件 |
+| private | `TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent` | VisibleAnywhere，GAS\|Abilities；持有自定义 ASC |
+
+
+## AGAS_PlayerState：创建与配置组件
 
 摘自 `Source/GAS_Acquaintance/Player/GAS_PlayerState.cpp` 的构造函数，省略原注释，仅调整空白排版：
 
@@ -20,7 +29,7 @@ AGAS_PlayerState::AGAS_PlayerState()
 }
 ```
 
-成员使用 `TObjectPtr<UAbilitySystemComponent>`，标记为 `VisibleAnywhere`；`GetAbilitySystemComponent()` 直接返回此成员。2026-10-29 核对时，构造函数已改为创建 `UGAS_AbilitySystemComponent`；保存和返回仍使用引擎基类类型。自定义类当前没有新增方法，见 [自定义 ASC](../AbilitySystem/AbilitySystemComponent.md)。
+成员使用 `TObjectPtr<UAbilitySystemComponent>`，标记为 `VisibleAnywhere`；`GetAbilitySystemComponent()` 直接返回此成员。构造函数创建 `UGAS_AbilitySystemComponent`，保存和返回使用引擎基类类型。派生组件重写授予与复制回调，见 [UGAS_AbilitySystemComponent](../AbilitySystem/AbilitySystemComponent.md)。
 
 | 设置 | 在项目中的含义 |
 | --- | --- |
@@ -30,15 +39,18 @@ AGAS_PlayerState::AGAS_PlayerState()
 
 复制模式的含义已对照本机 UE 5.6 的 `Engine/Plugins/Runtime/GameplayAbilities/Source/GameplayAbilities/Public/AbilitySystemComponent.h` 中的枚举注释。
 
-## PlayerState 与 Character 的分工
+## GetAbilitySystemComponent 与角色调用关系
 
-当前初始化参数明确指定：
+摘自 `GAS_PlayerState.cpp` 的 `GetAbilitySystemComponent()`，保留完整函数；原函数仅四行，不填充无关代码：
 
 ```cpp
-ASC->InitAbilityActorInfo(GetPlayerState(), this);
+UAbilitySystemComponent* AGAS_PlayerState::GetAbilitySystemComponent() const
+{
+    return AbilitySystemComponent;
+}
 ```
 
-这行发生在玩家角色中，所以 OwnerActor 是 PlayerState，AvatarActor 是当前 Character。ASC 的持有者和能力在场景中作用的角色可以是两个对象。
+该 getter 只返回成员，不初始化角色信息。[AGAS_PlayerCharacter](../Characters/PlayerCharacter.md) 的初始化调用把 PlayerState 作为 OwnerActor、当前角色作为 AvatarActor。ASC 的持有者和在场景中作用的角色是两个对象。
 
 这种放置方式便于在 Pawn 更换时继续使用同一个 PlayerState 上的 ASC，但当前项目没有实现完整的死亡、重生、能力清理或状态重置流程。不能由此认定重生功能已经完成。
 

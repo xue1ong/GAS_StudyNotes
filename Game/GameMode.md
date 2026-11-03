@@ -1,8 +1,10 @@
-# GameMode：游戏框架的配置入口
+# BP_GAS_Gamemode：蓝图类与配置
 
 GameMode 负责游戏规则和玩家对象的创建配置；联网游戏中的 GameMode 位于服务端。客户端需要使用的玩家状态，应通过 PlayerState 等可复制对象提供。
 
-本项目没有自定义 GameMode C++ 类，业务目录存在蓝图资产：
+本项目的 GameMode 入口为蓝图资产，没有对应的自定义 GameMode `.h` / `.cpp`。本页只说明已读取的配置和外部类依赖，不推断蓝图内部成员及函数。
+
+资产路径：
 
 ```text
 Content/GAS_Acquaintance/Blueprints/Game/BP_GAS_Gamemode.uasset
@@ -20,7 +22,7 @@ GlobalDefaultGameMode=/Game/GAS_Acquaintance/Blueprints/Game/BP_GAS_Gamemode.BP_
 
 即项目默认运行地图和编辑器启动地图都是 `Map_Main`，项目默认 GameMode 为 `BP_GAS_Gamemode`。具体地图的 World Settings 还可能覆盖 GameMode，运行时应检查该项；本次未核验地图内部设置。
 
-## 在蓝图默认值中核对的关系
+## 蓝图类属性：外部依赖（待核验）
 
 | GameMode 属性 | 对应资源 | 核对原因 |
 | --- | --- | --- |
@@ -44,7 +46,7 @@ flowchart TD
 
 实线表示已确认的配置或 C++ 依赖，虚线表示尚需在编辑器核验的配置关系。
 
-## 与 GAS 初始化的关系
+## 与角色类函数的关系
 
 本项目启动能力的授予入口在角色中，与 GameMode 的类配置通过以下依赖接起来。
 

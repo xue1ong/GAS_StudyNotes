@@ -1,72 +1,46 @@
-# Gameplay Event：动画与事件的核对入口
+# 跨文件关系索引：Gameplay Event
 
-参考项目新增了事件标签、动画资源和 `AN_SendEventToActor` 资产。本页记录已确认的源码与资源入口，并标出需要在编辑器中继续核验的连接。
+本页索引事件标识、能力类及动画通知资产；函数细节归入所属类。核对日期：2026-11-03。
 
-核对日期：2026-10-29。当前自定义 C++ 没有 Gameplay Event 发送或等待逻辑，因此不能把下面的资源线索视为已经跑通的事件流程。
+## 文件与类的职责
 
-## 事件 Tag 与能力检索 Tag 不同
-
-摘自 `Source/GAS_Acquaintance/GameplayTags/GAS_Tags.cpp`，仅保留外层 `GAS_Tags` 命名空间内部的 `GAS_Events` 定义，省略空行：
-
-```cpp
-namespace GAS_Events
-{
-    namespace Player
-    {
-        UE_DEFINE_GAMEPLAY_TAG_COMMENT(Primary, "GAS_Tags.GAS_Events.Primary", "Tag for the primary Gameplay Ability");
-    }
-}
-```
-
-| 项目项 | 当前值 |
-| --- | --- |
-| C++ 变量 | `GAS_Tags::GAS_Events::Player::Primary` |
-| 注册字符串 | `GAS_Tags.GAS_Events.Primary` |
-| 输入检索变量 | `GAS_Tags::GAS_Abilities::Primary` |
-| 输入检索字符串 | `GAS_Tags.GAS_Abilities.Primary` |
-
-尤其注意：C++ 命名空间有 `Player` 这一层，但注册的标签字符串**没有 `.Player`**。蓝图中应按实际字符串查找，不能由命名空间自行拼出另一个标签。
-
-当前 Controller 使用能力检索 Tag 调用 `TryActivateAbilitiesByTag()`，没有改成发送上述事件。事件 Tag 的定义本身也不会自动建立发送者、接收者或网络转发。
-
-## 已确认存在的资源
-
-以 `Content/GAS_Acquaintance/Blueprints` 为根：
-
-| 目录 | 已确认文件 | 尚需核验 |
+| 所属文件 / 类 | 已确认内容 | 对应笔记 |
 | --- | --- | --- |
-| `Notifies` | `AN_SendEventToActor.uasset` | 父类、通知回调、目标 Actor 与事件参数 |
-| `Characters/Player/Anim` | `AM_GAS_Primary_A.uasset`、`AM_GAS_Primary_B.uasset` | 资源类型、动画引用及通知轨道 |
-| `Characters/Player/Anim` | `Primary_A.uasset`、`Primary_B.uasset` | 资源类型、骨骼与上层资源的引用 |
-| `AbilitySystem/PlayerAbilities` | `GA_Primary.uasset` | 是否播放上述动画、是否接收事件、何时结束 |
+| GAS_Tags.h / .cpp | 声明并注册 Player.Primary 与 Enemy.HitReact 事件标签 | [GAS_Tags](../Tags/GameplayTags.md) |
+| AGAS_PlayerController | 按能力 Tag 尝试激活，没有发送事件的调用 | [PlayerController](../Player/PlayerController.md) |
+| UGAS_Primary | 球形查询和调试绘制，没有发送受击事件 | [Primary](Primary.md) |
+| UGAS_HitReact | 仅类声明，没有事件监听重写 | [HitReact](HitReact.md) |
+| UGAS_AbilitySystemComponent | 检查 ActivateOnGiven，没有事件发送或监听代码 | [ASC](AbilitySystemComponent.md) |
 
-文件名用于定位，不能单独证明资源类型、相互引用或事件图行为。
+事件变量 `GAS_Tags::GAS_Events::Player::Primary` 的注册字符串为 `GAS_Tags.GAS_Events.Primary`，不含 `.Player`；Enemy.HitReact 字符串为 `GAS_Tags.GAS_Events.Enemy.HitReact`。它们和 `GAS_Abilities` 下的能力检索标签是不同标识。
 
-## 待验证的关系图
+## 业务资产入口
+
+路径以 `Content/GAS_Acquaintance/Blueprints` 为根：
+
+| 目录 | 文件 | 内部关系核验范围 |
+| --- | --- | --- |
+| Notifies | AN_SendEventToActor.uasset | 父类、目标 Actor、事件参数及执行端 |
+| Characters/Player/Anim | AM_GAS_Primary_A / B.uasset | 动画引用及通知轨道 |
+| Characters/Player/Anim | Primary_A / B.uasset | 资源类型、骨骼与引用关系 |
+| AbilitySystem/PlayerAbilities | GA_GAS_Primary.uasset | 父类、动画播放、HitBoxOverlapTest 调用、事件接收及结束逻辑 |
+| AbilitySystem/EnemyAbilities | GA_GAS_HitReact.uasset | 父类、事件监听、受击响应及结束逻辑 |
+
+文件已确认存在，内部引用及蓝图逻辑尚未通过编辑器核验。
+
+## 源码与待核验资产的关系
 
 ```mermaid
 flowchart TD
-    tag["GAS_Tags.cpp"] -->|"已注册完整字符串"| eventTag["GAS_Tags.GAS_Events.Primary"]
-    controller["PlayerController.Primary"] -->|"已确认使用能力 Tag"| activation["TryActivateAbilitiesByTag"]
-    activation -.->|"GA 是否已授予且标签匹配，待核验"| ability["GA_Primary 资产"]
-    ability -.->|"是否调用动画资源，待核验"| animation["AM_GAS_Primary_A / B"]
-    animation -.->|"轨道是否配置此通知，待核验"| notify["AN_SendEventToActor"]
-    notify -.->|"是否发送该事件及目标 Actor，待核验"| eventTag
-    eventTag -.->|"谁接收、何时响应，待核验"| receiver["能力或其他接收逻辑"]
+    tags["GAS_Tags.cpp"] -->|"注册实际字符串"| eventTag["Primary 与 Enemy.HitReact 事件标签"]
+    controller["PlayerController.Primary"] -->|"使用能力 Primary Tag"| activation["TryActivateAbilitiesByTag"]
+    activation -.->|"资产是否已授予且标签匹配，待核验"| ability["GA_GAS_Primary"]
+    ability -.->|"父类与检测调用时机，待核验"| test["UGAS_Primary.HitBoxOverlapTest"]
+    test -->|"查询并在开关为真时绘制"| result["重叠结果与调试球，不直接发送事件"]
+    ability -.->|"动画调用，待核验"| animation["AM_GAS_Primary_A / B"]
+    animation -.->|"通知轨道，待核验"| notify["AN_SendEventToActor"]
+    notify -.->|"目标 Actor、事件 Tag 和参数，待核验"| eventTag
+    eventTag -.->|"监听与响应关系，待核验"| hit["GA_GAS_HitReact 或其他接收逻辑"]
 ```
 
-实线只有源码已确认的注册和输入调用；动画、通知、事件发送与接收之间均为核对线索，没有固定完成顺序或自动网络传播的含义。
-
-## 在编辑器中应确认什么
-
-| 位置 | 需要回答的问题 |
-| --- | --- |
-| `GA_Primary` | 能力在何处激活？是否调用动画？是否等待该事件或通过事件触发？ |
-| 动画资源 | 通知是否真的在被播放的资源中？通知时间点能否到达？ |
-| `AN_SendEventToActor` | 发给哪个 Actor？Tag 是否为实际注册字符串？携带什么数据？ |
-| 接收逻辑 | 接收目标是否就是发送目标？等待或监听逻辑是否已就绪？ |
-| 网络设置 | 哪一端播放动画、执行通知、处理事件？是否存在重复处理？ |
-
-这些是待核验问题，当前没有可直接从参考项目 C++ 摘录的事件发送示例，因此不在笔记中编写一个示例冒充现有实现。
-
-参见：[能力基类](GameplayAbility.md)、[Gameplay Tags](../Tags/GameplayTags.md)、[玩家输入](../Player/PlayerController.md)。
+实线表示已读源码中的调用或注册；虚线只表示需要核验的资产连接。事件是否转发、哪一端发送及接收、是否重复处理，都需要实际蓝图和运行行为的证据。

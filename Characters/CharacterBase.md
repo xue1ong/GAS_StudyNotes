@@ -1,41 +1,40 @@
-# 角色基类
+# AGAS_BaseCharacters
 
 `AGAS_BaseCharacters` 继承 `ACharacter`，集中管理角色的 GAS 接口和启动能力授予逻辑，供具体角色子类复用。
 
 源码：`Source/GAS_Acquaintance/Characters/GAS_BaseCharacters.h`、`GAS_BaseCharacters.cpp`。
 
-使用 `UCLASS(Abstract)` 将其标记为抽象类，避免直接在场景中放置该基类；实际对象应使用具体子类。
+## 头文件：成员与函数
+
+| 可见性 | 声明 | 职责 |
+| --- | --- | --- |
+| public | `AGAS_BaseCharacters()` | 公共 Actor Tick 与骨骼更新设置 |
+| public override | `GetAbilitySystemComponent() const` | GAS 接口；基类默认返回空 |
+| protected | `GiveStartupAbilities()` | 取得派生类提供的 ASC，逐项授予 |
+| private | `StartupAbilities` | EditDefaultsOnly，GAS\|Abilities；保存 UGameplayAbility 子类数组 |
+
+
+类标记为 `UCLASS(Abstract)`，不直接作为关卡中的具体角色；这不是通过纯虚函数形成的 C++ 抽象类。当前派生类为 [AGAS_PlayerCharacter](PlayerCharacter.md) 和 [AGAS_EnemyCharacter](EnemyCharacter.md)。
+
+## AGAS_BaseCharacters：公共构造设置
+
+摘自 `GAS_BaseCharacters.cpp` 的构造函数，保留完整函数，省略空行及注释：
 
 ```cpp
-UCLASS(Abstract)
-class GAS_ACQUAINTANCE_API AGAS_BaseCharacters : public ACharacter, public IAbilitySystemInterface
+AGAS_BaseCharacters::AGAS_BaseCharacters()
 {
-    GENERATED_BODY()
-
-public:
-    AGAS_BaseCharacters();
-
-    virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
-};
-```
-
-`UCLASS(Abstract)` 是 UE 的类标记；该类本身没有通过纯虚函数成为 C++ 抽象类。当前具体子类包括 [玩家角色](PlayerCharacter.md) 和 [敌人角色](EnemyCharacter.md)。
-
-## 公共构造设置
-
-```cpp
-PrimaryActorTick.bCanEverTick = false;
-GetMesh()->VisibilityBasedAnimTickOption =
-    EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+    PrimaryActorTick.bCanEverTick = false;
+    GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+}
 ```
 
 当前没有角色逐帧逻辑，因此关闭 Actor Tick。骨骼网格组件使用单独的动画 Tick 设置，源码注释说明其目的是让 Dedicated Server 在模型未被渲染时仍更新姿态和骨骼变换。不能把关闭 Actor Tick 理解为关闭骨骼动画更新。
 
-## GAS 接口与 ASC 所在位置
+## GetAbilitySystemComponent：接口与组件来源
 
 基类实现 `IAbilitySystemInterface`，但 `GetAbilitySystemComponent()` 当前只返回 `nullptr`，也没有创建 ASC。具体子类负责重写：玩家从 [PlayerState](../Player/PlayerState.md) 返回 ASC，敌人返回自身创建的 ASC。
 
-因此，新增角色子类时需要明确 ASC 的创建位置并实现取得逻辑；只继承基类还无法授予或激活能力。
+基类不持有组件；玩家通过 PlayerState 访问，敌人返回自身组件。接口的实际返回值由派生类实现决定。
 
 ```mermaid
 flowchart TD
@@ -48,7 +47,7 @@ flowchart TD
     enemy -->|"返回自身创建的组件"| enemyAsc["EnemyCharacter.ASC"]
 ```
 
-## 启动能力数组与授予
+## GiveStartupAbilities：启动能力数组与授予
 
 ```cpp
 UPROPERTY(EditDefaultsOnly, Category = "GAS|Abilities")
@@ -67,7 +66,7 @@ for (const auto& Ability : StartupAbilities)
 }
 ```
 
-`FGameplayAbilitySpec` 描述一次能力授予，`GiveAbility` 将其交给 ASC 管理；该函数没有显式激活调用。当前调用点包括玩家的 `PossessedBy()` 与敌人的 `BeginPlay()`，两处均先初始化 ActorInfo 并检查 `HasAuthority()`，再进入授予函数。
+`FGameplayAbilitySpec` 描述一次能力授予，`GiveAbility` 将其交给 ASC 管理。本函数没有显式激活调用；实际组件的 `OnGiveAbility()` 会检查自动激活标签，详见 [UGAS_AbilitySystemComponent](../AbilitySystem/AbilitySystemComponent.md)。当前调用点包括玩家的 `PossessedBy()` 与敌人的 `BeginPlay()`，两处均先初始化 ActorInfo 并检查 `HasAuthority()`，再进入授予函数。
 
 ```mermaid
 flowchart TD
@@ -82,8 +81,8 @@ flowchart TD
     give -->|"继续遍历"| nextAbility
 ```
 
-函数自身没有权限检查、空能力类检查和重复授予保护。后续若从其他入口调用，或发生重复占有，需要相应处理；不能假设它是可重复执行且无副作用的初始化函数。
+函数自身没有权限检查、空能力类检查和重复授予保护。权限由当前两个调用点检查；重复占有时可能重复进入授予流程。
 
-启动数组仍接受 `UGameplayAbility` 的子类，没有强制要求使用新增的 [UGAS_GameplayAbility](../AbilitySystem/GameplayAbility.md)。是否采用自定义能力基类取决于具体资产父类。
+启动数组接受 `UGameplayAbility` 的子类，没有强制要求使用 [UGAS_GameplayAbility](../AbilitySystem/GameplayAbility.md)。是否采用自定义能力基类取决于具体资产父类。
 
 参见：[启动能力与激活流程](../AbilitySystem/StartupAbilities.md)。

@@ -1,125 +1,66 @@
-# 启动能力与激活流程
+# 跨类关系索引：授予与激活
 
-本项目的 GAS 接入分为组件创建、角色信息初始化、能力授予和激活入口。下图先展示玩家输入路径；敌人初始化路径见后文对照。虚线表示可用条件，不是直接的函数调用。
+本页按所属类串联关系，成员和函数实现归入各类页面。核对日期：2026-11-03。
+
+## 组件与 ActorInfo 所属关系
+
+| 类 | 本类负责的内容 | 详细说明 |
+| --- | --- | --- |
+| AGAS_PlayerState | 创建自定义 ASC，复制模式 Mixed | [PlayerState](../Player/PlayerState.md) |
+| AGAS_PlayerCharacter | getter 转发、PossessedBy / OnRep_PlayerState 初始化 | [玩家角色](../Characters/PlayerCharacter.md) |
+| AGAS_EnemyCharacter | 自身创建 ASC，Minimal，BeginPlay 初始化 | [敌人角色](../Characters/EnemyCharacter.md) |
+| AGAS_BaseCharacters | StartupAbilities、Spec 构造、GiveAbility | [角色基类](../Characters/CharacterBase.md) |
 
 ```mermaid
 flowchart TD
-    create["创建组件：PlayerState 构造 ASC"] -->|"服务端占有角色且 ASC 有效"| init["初始化角色信息：InitAbilityActorInfo"]
-    init -->|"服务端初始化完成后调用"| grant["授予能力：GiveStartupAbilities / GiveAbility"]
-    clientReady["客户端 PlayerState 引用复制就绪"] -->|"OnRep_PlayerState 中调用"| clientInit["客户端初始化角色信息"]
-    input["本地能力输入：Started"] -->|"Controller 传入 Tag 容器"| activate["输入检索激活：TryActivateAbilitiesByTag"]
-    grant -.->|"目标能力需先授予，并在执行端可用"| activate
-    clientInit -.->|"客户端执行时需要本端 ActorInfo 就绪"| activate
-    activate -->|"标签匹配且激活条件满足时"| ability["执行能力逻辑"]
+    state["PlayerState 构造函数"] -->|"创建并持有，Mixed"| playerAsc["玩家 ASC"]
+    possessed["服务端 PlayerCharacter.PossessedBy"] -->|"Owner 为 PlayerState，Avatar 为当前角色"| playerInfo["InitAbilityActorInfo"]
+    playerAsc -->|"作为初始化目标"| playerInfo
+    playerInfo -->|"随后调用基类函数"| startup["GiveStartupAbilities"]
+    onRep["客户端 PlayerCharacter.OnRep_PlayerState"] -->|"本端引用就绪且 ASC 有效时"| clientInfo["InitAbilityActorInfo：PlayerState / 当前角色"]
+    enemy["EnemyCharacter 构造函数"] -->|"创建并持有，Minimal"| enemyAsc["敌人 ASC"]
+    begin["EnemyCharacter.BeginPlay：各端"] -->|"本端 ASC 有效，Owner 与 Avatar 均为 this"| enemyInfo["InitAbilityActorInfo"]
+    enemyAsc -->|"作为初始化目标"| enemyInfo
+    enemyInfo -->|"仅 HasAuthority 为真时调用"| startup
+    startup -->|"取得各自 ASC，遍历能力类构造 Spec"| give["ASC.GiveAbility"]
 ```
 
-源码入口：
+客户端的角色初始化回调不再授予能力；它和 ASC 的能力列表复制回调是不同事件，不能视为固定串行的两个步骤。
 
-- `Player/GAS_PlayerState.cpp`：创建、复制 ASC。
-- `Characters/GAS_PlayerCharacter.cpp`：初始化 ActorInfo。
-- `Characters/Enemy/GAS_EnemyCharacter.cpp`：敌人自身 ASC 的创建和 BeginPlay 初始化。
-- `Characters/GAS_BaseCharacters.cpp`：授予启动能力。
-- `Player/GAS_PlayerController.cpp`：按 Tag 尝试激活能力。
+## 自动激活与输入激活的类边界
 
-以上路径均相对于 `Source/GAS_Acquaintance`。
+| 路径 | 入口所属类 | 传递信息 | 后续调用 |
+| --- | --- | --- | --- |
+| 授予回调 | UGAS_AbilitySystemComponent.OnGiveAbility | 本次 Spec | HandleAutoActivateAbility |
+| 能力列表复制 | UGAS_AbilitySystemComponent.OnRep_ActivateAbilities | 锁内逐项 Spec | HandleAutoActivateAbility |
+| 玩家输入 | AGAS_PlayerController.Primary / Secondary / Tertiary | 能力检索 Tag | ActivateAbility / TryActivateAbilitiesByTag |
 
-## 1. 创建组件
-
-玩家的 PlayerState 构造时创建 `UGAS_AbilitySystemComponent`，开启组件复制，设置 `Mixed` 复制模式。玩家角色本身不创建 ASC，而是通过 `GetAbilitySystemComponent()` 转发到 PlayerState。敌人在自身构造函数创建相同自定义类型的 ASC，使用 `Minimal` 模式。
-
-## 2. 初始化能力上下文
-
-服务端 `PossessedBy()` 和客户端 `OnRep_PlayerState()` 都会初始化 ActorInfo。以下摘自 `Source/GAS_Acquaintance/Characters/GAS_PlayerCharacter.cpp` 的 `PossessedBy()` 函数体，仅保留父类调用之后的 ASC 检查、初始化与授予部分，省略原注释，保留一处空行以区分检查和调用：
-
-```cpp
-UAbilitySystemComponent* LocalAbilitySystemCom = GetAbilitySystemComponent();
-if (!LocalAbilitySystemCom || !HasAuthority()) return;
-
-LocalAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(),this);
-GiveStartupAbilities();
+```mermaid
+flowchart TD
+    give["ASC.GiveAbility"] -->|"引擎授予回调"| onGive["自定义 ASC.OnGiveAbility"]
+    onGive -->|"本次 Spec，先执行父类后"| handler["HandleAutoActivateAbility"]
+    rep["客户端 ASC.OnRep_ActivateAbilities"] -->|"父类执行后，列表锁内逐项 Spec"| handler
+    handler -->|"精确匹配 ActivateOnGiven，按 Handle"| direct["TryActivateAbility"]
+    input["本地输入 Started"] -->|"调用 Controller 对应能力回调"| tag["ActivateAbility：能力 Tag"]
+    tag -->|"通过 Pawn 接口取得 PlayerState.ASC"| query["TryActivateAbilitiesByTag"]
+    query -->|"检索已授予能力，尝试候选"| direct
+    direct -->|"上下文、网络策略和激活条件允许时"| ability["能力激活"]
 ```
 
-| 角色信息 | 本项目传入的对象 |
+这里存在自动激活的实际 C++ 处理代码，但尝试调用不保证成功。组件没有“一次性激活”记录或失败队列；具体实现见 [自定义 ASC](AbilitySystemComponent.md)。输入路径见 [PlayerController](../Player/PlayerController.md)。
+
+## 能力类之间的关系
+
+[UGAS_GameplayAbility](GameplayAbility.md) 提供 `bDrawDebugs`；[UGAS_Primary](Primary.md) 的 `HitBoxOverlapTest()` 读取它并执行球形查询与条件绘制；[UGAS_HitReact](HitReact.md) 没有自定义成员或重写函数。球形查询没有直接发送受击事件，事件候选连接归入 [事件关系索引](GameplayEvents.md)。
+
+## 排查位置索引
+
+| 检查对象 | 所属类或文件 |
 | --- | --- |
-| OwnerActor | 当前 PlayerState |
-| AvatarActor | 当前 PlayerCharacter |
-
-ActorInfo 负责关联 ASC 与当前角色上下文；创建了 ASC 并不意味着已经完成这层关联。两个回调的具体时机见 [玩家角色](../Characters/PlayerCharacter.md)。
-
-敌人使用不同入口，但最终复用相同授予函数：
-
-```mermaid
-flowchart TD
-    begin["敌人 BeginPlay"] -->|"取得自身 ASC，检查有效性后"| init["InitAbilityActorInfo：this / this"]
-    init -->|"初始化后检查权限"| authority{"HasAuthority？"}
-    authority -->|"否"| clientDone["客户端结束本次初始化"]
-    authority -->|"是"| startup["GiveStartupAbilities"]
-    startup -->|"复用基类循环"| give["自身 ASC.GiveAbility"]
-```
-
-完整代码与玩家 / 敌人的参数对照见 [敌人角色](../Characters/EnemyCharacter.md)。
-
-## 3. 在服务端授予启动能力
-
-`PossessedBy()` 完成初始化后调用 `GiveStartupAbilities()`。函数遍历 `StartupAbilities`，为每个能力类构造 `FGameplayAbilitySpec`，再调用 `GiveAbility()`。
-
-摘自 `Source/GAS_Acquaintance/Characters/GAS_BaseCharacters.cpp` 的 `GiveStartupAbilities()`，仅保留遍历与授予部分，省略原注释：
-
-```cpp
-for (const auto& Ability : StartupAbilities)
-{
-    FGameplayAbilitySpec AbilitySpec = FGameplayAbilitySpec(Ability);
-    LocalAbilitySystemCom->GiveAbility(AbilitySpec);
-}
-```
-
-这五行对应总览图的“授予能力”节点；进入循环前，函数已经取得并检查了 `LocalAbilitySystemCom`。
-
-当前代码没有保存 `GiveAbility()` 返回的 Handle，没有设置输入 ID，也没有给 Spec 动态添加输入 Tag。用于后续检索的能力标识需要在能力资产中核对。
-
-新增标签 `GAS_Tags.GAS_Abilities.ActivateOnGiven` 的注释表达“授予后立即激活”的意图，但当前自定义 ASC 与能力基类没有实现对应处理；上述循环只显式调用 `GiveAbility()`，不能把标签名称当作自动激活机制。
-
-业务目录有 `GA_Primary`、`GA_Secondary`、`GA_Teriary` 三项资产，但角色数组是否引用它们尚未通过编辑器确认；数组为空时本次循环不会授予任何能力。
-
-## 4. 由输入尝试激活
-
-以 Primary 为例：
-
-```mermaid
-flowchart TD
-    mapping["IMC 中配置的输入"] -->|"触发 PrimaryAction.Started"| primary["PlayerController.Primary"]
-    primary -->|"选择 Primary 原生 Tag"| entry["ActivateAbility"]
-    entry -->|"以当前 Pawn 为参数"| lookup["GetAbilitySystemComponent"]
-    lookup -->|"调用 PlayerCharacter 的 GAS 接口"| getter["PlayerCharacter.GetAbilitySystemComponent"]
-    getter -->|"转型并访问 PlayerState"| asc["PlayerState.ASC"]
-    asc -->|"作为本次调用的组件"| valid{"ASC 是否有效？"}
-    valid -->|"否"| earlyReturn["提前返回"]
-    valid -->|"是"| activate["TryActivateAbilitiesByTag"]
-    entry -->|"把 Primary Tag 转成单标签容器"| activate
-    activate -->|"检索已授予能力的 AssetTags"| matches["匹配能力候选"]
-    matches -->|"逐个尝试，仍需满足激活条件"| attempt["TryActivateAbility"]
-```
-
-这条路径把输入资源、原生标签和能力实现解耦：Controller 只选择标签，能力资产负责具体行为。当前已有 C++ 能力基类，但只增加了 `bDrawDebugs` 属性，没有具体技能逻辑，不能从这条调用链推断 Primary 一定是攻击、Secondary 一定是冲刺等具体效果。
-
-新增事件标签和通知资产没有改变上述 Controller 调用；动画与事件的候选连接见 [Gameplay Event 核对入口](GameplayEvents.md)。
-
-## 能力无响应时按层排查
-
-| 现象 / 检查点 | 对照位置 |
-| --- | --- |
-| 没进入输入回调 | GameMode 的 Controller 类、Controller 默认值、IMC 键位、Action 事件 |
-| 取得 ASC 为空 | 当前 Pawn 类型、PlayerState 类型、PlayerState 是否就绪 |
-| ASC 存在但上下文不对 | `PossessedBy()` / `OnRep_PlayerState()` 是否执行、OwnerActor / AvatarActor 参数 |
-| ASC 没有目标能力 | 服务端是否调用 `GiveStartupAbilities()`、角色数组是否包含该能力类 |
-| 有能力但标签不匹配 | 原生 Tag 完整字符串与能力自身标识标签 |
-| 标签匹配仍未激活 | 能力的激活条件、阻止标签、费用 / 冷却和网络执行设置（若资产使用了这些机制） |
-| 能力无法再次触发 | 能力是否正常结束、是否仍处于激活状态；需检查蓝图逻辑 |
-
-当前 Controller 未记录激活结果，需要调试时可在这些入口设置断点。授予函数也没有去重，重复占有同一角色或复用同一个 ASC 时，应留意是否重复授予。
-
-## 后续可补充的主题
-
-当项目实现后再补充 AttributeSet 与属性复制、GameplayEffect 与费用 / 冷却、伤害计算、GameplayCue、能力输入松开事件、重生与能力清理。当前 C++ 不能证明这些功能已经存在。
-
-参见：[角色基类](../Characters/CharacterBase.md)、[PlayerState](../Player/PlayerState.md)、[Gameplay Tags](../Tags/GameplayTags.md)、[PlayerController](../Player/PlayerController.md)。
+| 实际玩家对象类型 | GameMode 蓝图默认类与地图覆盖 |
+| 输入资源引用、事件绑定 | PlayerController.h / SetupInputComponent |
+| ASC getter 返回值、Owner / Avatar | PlayerState、PlayerCharacter、EnemyCharacter |
+| 启动能力类数组 | BaseCharacters.h 与角色蓝图默认值 |
+| 自动激活标签匹配与尝试结果 | AbilitySystemComponent.cpp |
+| 查询条件、球心与碰撞参数 | Primary.cpp |
+| 事件实际发送和接收 | GAS_Tags 只提供标识；蓝图逻辑待核验 |
