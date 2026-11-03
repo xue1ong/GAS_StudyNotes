@@ -48,10 +48,10 @@ void UGAS_AbilitySystemComponent::OnRep_ActivateAbilities()
 
 ## HandleAutoActivateAbility：精确匹配并尝试激活
 
-函数先取 `AbilitySpec.Ability`，为空则返回。以下摘自同一 `.cpp`，仅保留遍历标签的部分：
+函数先将 `AbilitySpec.Ability` 保存为 `const UGameplayAbility* CurAbility`，为空则返回。以下摘自同一 `.cpp`，仅保留遍历标签的部分：
 
 ```cpp
-for (const FGameplayTag& Tag : LocalAbility->GetAssetTags())
+for (const FGameplayTag& Tag : CurAbility->GetAssetTags())
 {
     if (Tag.MatchesTagExact(GAS_Tags::GAS_Abilities::ActivateOnGiven))
     {

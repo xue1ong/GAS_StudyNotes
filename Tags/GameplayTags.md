@@ -34,7 +34,7 @@ namespace Player
 
 这里定义本身只有四行，不填充无关代码。C++ 命名空间含 `Player`，实际注册字符串不含 `.Player`。事件 Primary 与能力 Primary 是不同标签；Enemy.HitReact 的能力和事件字符串也不同。
 
-当前自定义 C++ 没有发送或等待上述 Gameplay Event 的代码。事件标签注册不会自动建立发送者、目标或接收者；资源关系见 [事件关系索引](../AbilitySystem/GameplayEvents.md)。
+`UGAS_Primary::SendHitReactEventToActors()` 直接使用 `GAS_Events::Enemy::HitReact`，为目标数组逐项发送受击事件，Payload.Instigator 为当前 Avatar。`GAS_Events::Player::Primary` 当前只有注册，没有对应的自定义 C++ 发送调用。目标能力的监听与触发配置仍需核验，见 [事件关系索引](../AbilitySystem/GameplayEvents.md)。
 
 ## 声明与定义的对应方式
 
@@ -60,7 +60,9 @@ flowchart TD
     granted -->|"逐标签执行 MatchesTagExact"| handler
     handler -->|"命中约定标签时按 Spec.Handle"| activate["TryActivateAbility"]
     definitions -->|"注册两个独立的事件标识"| events["Player.Primary / Enemy.HitReact"]
-    events -.->|"动画通知与能力监听如何使用，待核验"| assets["蓝图事件逻辑"]
+    events -->|"Enemy.HitReact 由该函数引用"| send["Primary.SendHitReactEventToActors"]
+    send -->|"逐目标发送，Instigator 为发起 Avatar"| target["目标 ASC.HandleGameplayEvent"]
+    target -.->|"能力事件触发或监听配置，待核验"| assets["蓝图接收逻辑"]
 ```
 
 UE 5.6 的输入检索路径使用 `Spec.Ability->GetAssetTags().HasAll(...)`；自动激活路径则逐标签执行 `MatchesTagExact()`。两条路径的入口和匹配方式不同。能力标识属性在本机引擎 `GameplayAbility.h` 的显示名为 `AssetTags (Default AbilityTags)`，不要与激活所需、激活阻止或激活附加标签混淆。

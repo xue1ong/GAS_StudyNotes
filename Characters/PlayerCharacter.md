@@ -59,11 +59,11 @@ flowchart LR
 ```cpp
 UAbilitySystemComponent* AGAS_PlayerCharacter::GetAbilitySystemComponent() const
 {
-    const AGAS_PlayerState* LocalPlayerState =
+    const AGAS_PlayerState* CurPlayerState =
         Cast<AGAS_PlayerState>(GetPlayerState());
-    if (!LocalPlayerState) return nullptr;
+    if (!CurPlayerState) return nullptr;
 
-    return LocalPlayerState->GetAbilitySystemComponent();
+    return CurPlayerState->GetAbilitySystemComponent();
 }
 ```
 
@@ -77,9 +77,9 @@ UAbilitySystemComponent* AGAS_PlayerCharacter::GetAbilitySystemComponent() const
 void AGAS_PlayerCharacter::PossessedBy(AController* NewController)
 {
     Super::PossessedBy(NewController);
-    UAbilitySystemComponent* LocalAbilitySystemCom = GetAbilitySystemComponent();
-    if (!LocalAbilitySystemCom || !HasAuthority()) return;
-    LocalAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
+    UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
+    if (!CurAbilitySystemCom || !HasAuthority()) return;
+    CurAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
     GiveStartupAbilities();
 }
 ```
@@ -95,10 +95,10 @@ void AGAS_PlayerCharacter::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
 
-    UAbilitySystemComponent* LocalAbilitySystemCom = GetAbilitySystemComponent();
-    if (!LocalAbilitySystemCom) return;
+    UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
+    if (!CurAbilitySystemCom) return;
 
-    LocalAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
+    CurAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
 }
 ```
 

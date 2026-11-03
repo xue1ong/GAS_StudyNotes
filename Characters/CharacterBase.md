@@ -57,12 +57,12 @@ TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
 数组保存能力**类**，在类默认值中编辑；它不是运行中的能力实例列表。以下摘自 `Source/GAS_Acquaintance/Characters/GAS_BaseCharacters.cpp` 的 `GiveStartupAbilities()` 函数体，省略函数外壳、空行及注释：
 
 ```cpp
-UAbilitySystemComponent* LocalAbilitySystemCom = GetAbilitySystemComponent();
-if (!LocalAbilitySystemCom) return;
+UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
+if (!CurAbilitySystemCom) return;
 for (const auto& Ability : StartupAbilities)
 {
     FGameplayAbilitySpec AbilitySpec = FGameplayAbilitySpec(Ability);
-    LocalAbilitySystemCom->GiveAbility(AbilitySpec);
+    CurAbilitySystemCom->GiveAbility(AbilitySpec);
 }
 ```
 

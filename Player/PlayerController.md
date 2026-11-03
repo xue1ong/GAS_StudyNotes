@@ -86,8 +86,8 @@ const FRotator YawRotation(0.f, GetControlRotation().Yaw, 0.f);
 const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
-LocalPawn->AddMovementInput(ForwardDirection, MovementVector.Y);
-LocalPawn->AddMovementInput(RightDirection, MovementVector.X);
+CurPawn->AddMovementInput(ForwardDirection, MovementVector.Y);
+CurPawn->AddMovementInput(RightDirection, MovementVector.X);
 ```
 
 因此输入 Y 对应前后、X 对应左右，方向由控制器的水平朝向决定。实际键位到这两个轴的转换由 Input Mapping Context 决定。

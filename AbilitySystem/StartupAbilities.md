@@ -51,7 +51,7 @@ flowchart TD
 
 ## 能力类之间的关系
 
-[UGAS_GameplayAbility](GameplayAbility.md) 提供 `bDrawDebugs`；[UGAS_Primary](Primary.md) 的 `HitBoxOverlapTest()` 读取它并执行球形查询与条件绘制；[UGAS_HitReact](HitReact.md) 没有自定义成员或重写函数。球形查询没有直接发送受击事件，事件候选连接归入 [事件关系索引](GameplayEvents.md)。
+[UGAS_GameplayAbility](GameplayAbility.md) 在激活回调中按 `bDrawDebugs` 显示提示；[UGAS_Primary](Primary.md) 查询并返回去重 Actor，另由 `SendHitReactEventToActors()` 发送事件。[UGAS_HitReact](HitReact.md) 缓存 AvatarForward 与 ToInstigator，[方向工具类](../Utils/BlueprintLibrary.md) 判定枚举并映射名称。各函数的蓝图连接及接收端配置见 [事件关系索引](GameplayEvents.md)。
 
 ## 排查位置索引
 
@@ -63,4 +63,6 @@ flowchart TD
 | 启动能力类数组 | BaseCharacters.h 与角色蓝图默认值 |
 | 自动激活标签匹配与尝试结果 | AbilitySystemComponent.cpp |
 | 查询条件、球心与碰撞参数 | Primary.cpp |
-| 事件实际发送和接收 | GAS_Tags 只提供标识；蓝图逻辑待核验 |
+| 事件发送 | Primary.SendHitReactEventToActors，目标数组及 Payload.Instigator |
+| 事件接收与缓存调用 | 目标 ASC 与能力蓝图；HitReact.CacheHitDirectionVector 调用时机待核验 |
+| 前后左右与名称 | BlueprintLibrary.GetHitDirection / GetHitDirectionName |

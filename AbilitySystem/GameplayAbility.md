@@ -1,52 +1,57 @@
 # UGAS_GameplayAbility
 
-继承 `UGameplayAbility`，为派生能力提供公共调试属性。
+继承 `UGameplayAbility`，提供公共调试开关，并在激活回调中输出屏幕提示。
 
 源码：`Source/GAS_Acquaintance/AbilitySystem/Abilities/GAS_GameplayAbility.h`、`GAS_GameplayAbility.cpp`。核对日期：2026-11-03。
 
-## 头文件：类声明与成员
+## 头文件：成员与重写函数
 
-摘自 `GAS_GameplayAbility.h`，保留完整类声明，省略空行：
+| 声明 | 可见性 / 标记 | 职责 |
+| --- | --- | --- |
+| `bool bDrawDebugs = false` | public，EditDefaultsOnly，BlueprintReadOnly，GAS\|Debug | 类默认值中配置，蓝图可读，默认关闭 |
+| `ActivateAbility(...)` | public override | 先调用父类激活，再按开关输出提示 |
+
+重写函数的四个参数为 `const FGameplayAbilitySpecHandle Handle`、`const FGameplayAbilityActorInfo* ActorInfo`、`const FGameplayAbilityActivationInfo ActivationInfo`、`const FGameplayEventData* TriggerEventData`。当前实现原样传给父类，不自行读取事件 Payload。
+
+## ActivateAbility：屏幕提示与执行顺序
+
+摘自 `GAS_GameplayAbility.cpp` 的 `ActivateAbility()`，仅保留函数体，省略空行：
 
 ```cpp
-UCLASS()
-class GAS_ACQUAINTANCE_API UGAS_GameplayAbility : public UGameplayAbility
+Super::ActivateAbility(Handle, ActorInfo, ActivationInfo, TriggerEventData);
+if (bDrawDebugs && GEngine)
 {
-    GENERATED_BODY()
-public:
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "GAS|Debug")
-    bool bDrawDebugs = false;
-};
+    GEngine->AddOnScreenDebugMessage(-1,3.f,FColor::Cyan,FString::Printf(TEXT("%s Activated"),*GetName()));
+}
 ```
 
-| 成员 | 可见性与标记 | 含义 |
-| --- | --- | --- |
-| `bDrawDebugs` | public，EditDefaultsOnly | 类默认值中设置，默认 false |
-| 同一属性 | BlueprintReadOnly | 蓝图可读取，未开放蓝图写入 |
-| 同一属性 | `GAS\|Debug` | 详情面板分类 |
+提示内容为当前能力对象名加 Activated，颜色 Cyan，持续 3 秒，消息键为 -1。父类激活逻辑先执行；开关和 GEngine 检查只控制这段显示，不构成激活条件。这里未检查能力是否已结束，也没有追加费用、冷却或结束处理。
 
-## 源文件：实现范围
+```mermaid
+flowchart TD
+    activation["ActivateAbility：收到四个上下文参数"] -->|"原样传递，先执行"| parent["Super.ActivateAbility"]
+    parent -->|"返回后检查"| debug{"bDrawDebugs 且 GEngine 有效？"}
+    debug -->|"否"| done["回调结束"]
+    debug -->|"是"| message["屏幕显示能力名 Activated，Cyan，3 秒"]
+    message -->|"显示调用后"| done
+```
 
-`.cpp` 只有本类头文件的包含。本类没有声明或实现构造函数、激活 / 结束重写、费用 / 冷却处理，也没有绘制调用。调试属性的直接 C++ 使用者是 [UGAS_Primary](Primary.md) 的 `HitBoxOverlapTest()`。
-
-## 派生类与属性使用
+## 派生类与调试属性使用者
 
 ```mermaid
 flowchart TD
     engine["UGameplayAbility"] -->|"被继承"| base["UGAS_GameplayAbility"]
-    base -->|"public 属性，默认 false"| flag["bDrawDebugs"]
+    base -->|"bDrawDebugs 控制"| screen["激活屏幕提示"]
     base -->|"被继承"| primary["UGAS_Primary"]
-    base -->|"被继承，无成员或函数重写"| hit["UGAS_HitReact"]
-    primary -->|"HitBoxOverlapTest 读取继承属性"| flag
-    flag -->|"为 true 才执行"| draw["红色查询球与绿色结果球绘制"]
-    primary -.->|"GA_GAS_Primary 的父类，待核验"| primaryAsset["玩家能力资产"]
-    hit -.->|"GA_GAS_HitReact 的父类，待核验"| hitAsset["敌人能力资产"]
+    base -->|"被继承"| hit["UGAS_HitReact"]
+    primary -->|"HitBoxOverlapTest 按同一开关调用"| draw["DrawHitBoxOverlapDebugs"]
+    hit -->|"CacheHitDirectionVector 写入"| vectors["AvatarForward 与 ToInstigator"]
+    primary -.->|"能力资产父类，待核验"| primaryAsset["GA_GAS_Primary"]
+    hit -.->|"能力资产父类及派生关系，待核验"| hitAsset["GA_GAS_HitReact / Melee / Ranged"]
 ```
 
-基类属性只控制明确读取它的代码。Primary 的查询在绘制分支之前执行，关闭开关不取消查询。`UGAS_HitReact` 本身没有读取此属性的逻辑。
+本类输出屏幕提示，[Primary](Primary.md) 输出球形范围和结果调试图；它们读取同名继承属性。[HitReact](HitReact.md) 本身没有额外的方向绘制逻辑。派生蓝图是否保留父类激活调用及开关值，需要在编辑器核验。
 
-## 与启动数组的类型关系
+## 与授予和自动激活的关系
 
-[AGAS_BaseCharacters](../Characters/CharacterBase.md) 使用 `TArray<TSubclassOf<UGameplayAbility>>` 保存能力类，并未限制为本类。因此数组允许引擎能力基类的其他子类；具体资产父类和角色默认数组仍需在编辑器核验。
-
-自动激活标签由 [UGAS_AbilitySystemComponent](AbilitySystemComponent.md) 检查，不是本类实现的授予回调。
+[AGAS_BaseCharacters](../Characters/CharacterBase.md) 的启动数组为 `TArray<TSubclassOf<UGameplayAbility>>`，没有强制限定为本类。自动激活标签检查归于 [UGAS_AbilitySystemComponent](AbilitySystemComponent.md)，本类负责实际激活回调中的公共显示逻辑。

@@ -14,9 +14,10 @@
 | `Player/GAS_PlayerState` | `AGAS_PlayerState` | [玩家 ASC 的创建与复制设置](Player/PlayerState.md) |
 | `Player/GAS_PlayerController` | `AGAS_PlayerController` | [输入成员、绑定与能力激活](Player/PlayerController.md) |
 | `AbilitySystem/GAS_AbilitySystemComponent` | `UGAS_AbilitySystemComponent` | [授予回调、复制回调与自动激活检查](AbilitySystem/AbilitySystemComponent.md) |
-| `AbilitySystem/Abilities/GAS_GameplayAbility` | `UGAS_GameplayAbility` | [公共调试属性](AbilitySystem/GameplayAbility.md) |
-| `AbilitySystem/Abilities/Player/GAS_Primary` | `UGAS_Primary` | [球形重叠查询与调试绘制](AbilitySystem/Primary.md) |
-| `AbilitySystem/Abilities/Enemy/GAS_HitReact` | `UGAS_HitReact` | [类声明、继承及实现范围](AbilitySystem/HitReact.md) |
+| `AbilitySystem/Abilities/GAS_GameplayAbility` | `UGAS_GameplayAbility` | [激活回调与公共调试属性](AbilitySystem/GameplayAbility.md) |
+| `AbilitySystem/Abilities/Player/GAS_Primary` | `UGAS_Primary` | [命中查询、事件发送与调试绘制](AbilitySystem/Primary.md) |
+| `AbilitySystem/Abilities/Enemy/GAS_HitReact` | `UGAS_HitReact` | [方向向量缓存与调用边界](AbilitySystem/HitReact.md) |
+| `Utils/GAS_BlueprintLibrary` | `UGAS_BlueprintLibrary` | [方向枚举、判定与名称映射](Utils/BlueprintLibrary.md) |
 
 ## 非类文件与关系索引
 
@@ -52,6 +53,6 @@ flowchart TD
 
 代码以参考项目的 `.h` / `.cpp` 为准，配置以 `.uproject` / `.ini` 为准。短代码注明源文件、函数与节选范围；跨类页面只索引关系，具体函数归入所属类说明。
 
-资源路径已核对文件存在；本次没有通过 UE 编辑器核验蓝图父类、默认数组、事件图和动画通知。未核验的关系以虚线标注。当前业务能力资源为 `GA_GAS_Primary`、`GA_Secondary`、`GA_Teriary` 和 `GA_GAS_HitReact`，其中 `GA_Teriary` 是实际文件拼写。
+资源路径已核对文件存在；本次没有通过 UE 编辑器核验蓝图父类、默认数组、事件图和动画通知。未核验的关系以虚线标注。当前业务能力资源包含 `GA_GAS_Primary`、`GA_Secondary`、`GA_Teriary`、`GA_GAS_HitReact` 及其 Melee / Ranged 资源，其中 `GA_Teriary` 是实际文件拼写。
 
-源码涵盖自动激活检查与球形查询，但没有自定义 AttributeSet、GameplayEffect、伤害结算、UI 控制或 Gameplay Event 发送实现。球形查询的存在不等于伤害或受击链路已经完成。
+源码涵盖自动激活、激活调试提示、命中 Actor 去重、受击事件发送、方向向量缓存和方向判定。查询与发送、事件监听与方向缓存、方向名称与动画选择之间的蓝图连接仍待核验；当前没有自定义 AttributeSet、GameplayEffect、伤害结算或 UI 控制实现。完整关系见 [事件与受击方向索引](AbilitySystem/GameplayEvents.md)。

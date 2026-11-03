@@ -84,6 +84,8 @@ Blueprints/
       BP_Enemy_Ranged.uasset
       Anim/ABP_Enemy_Melee.uasset
       Anim/ABP_Enemy_Ranged.uasset
+      Anim/AM_HitReact_Melee.uasset
+      Anim/AM_HitReact_Ranged.uasset
   Notifies/AN_SendEventToActor.uasset
   Input/
     IMC_Movement.uasset
@@ -99,6 +101,8 @@ Blueprints/
     PlayerAbilities/GA_Secondary.uasset
     PlayerAbilities/GA_Teriary.uasset
     EnemyAbilities/GA_GAS_HitReact.uasset
+    EnemyAbilities/GA_GAS_HitReact_Melee.uasset
+    EnemyAbilities/GA_GAS_HitReact_Ranged.uasset
 ```
 
 `/Game/...` 对应磁盘 `Content/...`；GameMode 路径的 `_C` 指蓝图生成类。上述文件存在已核对，蓝图父类、默认引用、动画通知轨道和能力事件图没有经过本次编辑器核验。
