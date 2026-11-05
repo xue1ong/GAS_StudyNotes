@@ -123,6 +123,6 @@ flowchart TD
     effect -->|"根据效果配置改变"| values["UGAS_AttributeSet 属性数据"]
 ```
 
-广播早于本次初始 GE 应用；它不表示属性初值已完成，也不是 RPC。客户端角色回调仅初始化和广播，不再次授予能力或应用初始 GE。
+广播早于本次初始 GE 应用；它不表示属性初值已完成，也不是 RPC。Widget 取得引用后还会检查属性集的 `bAttributesInitialized`，按状态等待 `OnAttributesInitialized` 或直接进入绑定入口；该标记的首次执行语义和复制注册缺口见属性集页面。客户端角色回调仅初始化和广播，不再次授予能力或应用初始 GE。
 
 参见：[属性集](../AbilitySystem/AttributeSet.md)、[Widget 组件](../UI/WidgetComponent.md)、[初始化关系索引](../AbilitySystem/StartupAbilities.md)。

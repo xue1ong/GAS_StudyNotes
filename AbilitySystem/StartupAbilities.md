@@ -54,29 +54,40 @@ flowchart TD
 
 这里存在自动激活的实际 C++ 处理代码，但尝试调用不保证成功。组件没有“一次性激活”记录或失败队列；具体实现见 [自定义 ASC](AbilitySystemComponent.md)。输入路径见 [PlayerController](../Player/PlayerController.md)。
 
-## 属性复制与 Widget 引用缓存
+## 属性初始化通知与 Widget 绑定入口
 
 | 类 / 函数 | 实际完成的事情 | 所属说明 |
 | --- | --- | --- |
 | BaseCharacters.InitializeAttributes | 在服务端应用配置的初始 GE | [角色基类](../Characters/CharacterBase.md) |
-| UGAS_AttributeSet | Health / MaxHealth / Mana / MaxMana 访问器和复制通知 | [属性集](AttributeSet.md) |
-| UGAS_WidgetComponent.InitAbilitySystemData | 缓存角色、ASC、属性集弱引用 | [Widget 组件](../UI/WidgetComponent.md) |
-| WidgetComponent.OnSACInitialized | 根据委托参数更新引用 | 同上 |
+| AttributeSet.PostGameplayEffectExecute | 本端首次执行回调时设置标记并广播 | [属性集](AttributeSet.md) |
+| AttributeSet.OnRep_AttributesInitialized | 标记为 true 时广播；当前标记缺少复制注册 | 同上 |
+| WidgetComponent.InitAbilitySystemData / OnSACInitialized | 取得或更新角色、ASC、属性集弱引用 | [Widget 组件](../UI/WidgetComponent.md) |
+| WidgetComponent.InitializeAttributeDelegate | 根据标记等待属性集通知，或直接进入绑定入口 | 同上 |
+| WidgetComponent.BindToAttributeChange | 函数体当前只有 TODO，尚未监听或刷新 | 同上 |
 
 ```mermaid
 flowchart TD
-    widget["Widget.BeginPlay"] -->|"先尝试取得角色 ASC / AS"| pointers{"指针缓存都有效？"}
-    pointers -->|"否，Owner 须为有效角色"| bind["绑定 OnASCInitialized"]
-    role["角色本端 ActorInfo 初始化"] -->|"先广播"| signal["OnASCInitialized：ASC / AS"]
-    bind -->|"收到本端广播时调用"| callback["Widget.OnSACInitialized"]
-    signal -->|"把指针传给已绑定回调"| callback
-    pointers -->|"是，不绑定通知"| cached["引用可用，本次 BeginPlay 结束"]
-    signal -->|"服务端随后授予能力，再应用"| initial["InitializeAttributes"]
-    initial -->|"效果配置决定数值"| attributes["UGAS_AttributeSet"]
-    attributes -->|"满足网络复制条件时"| onRep["客户端属性 OnRep，协调所属 ASC"]
+    widget["Widget.BeginPlay"] -->|"缓存角色、ASC 与 AS"| pointers{"缓存指针都有效？"}
+    pointers -->|"否"| bindRole["绑定角色 OnASCInitialized 并返回"]
+    role["角色本端 ActorInfo 初始化"] -->|"先广播 ASC / AS"| roleSignal["OnASCInitialized"]
+    bindRole -->|"等待本端角色通知"| callback["Widget.OnSACInitialized"]
+    roleSignal -->|"传递给已绑定组件"| callback
+    callback -->|"更新引用并确认有效"| prepare["InitializeAttributeDelegate"]
+    pointers -->|"是，直接调用"| prepare
+    prepare -->|"读取属性集本端标记"| ready{"bAttributesInitialized？"}
+    ready -->|"false"| wait["监听属性集 OnAttributesInitialized"]
+    ready -->|"true"| binding["BindToAttributeChange：当前 TODO"]
+    roleSignal -->|"服务端随后授予，再应用"| initial["InitializeAttributes"]
+    initial -->|"效果实际执行属性修改时"| post["AttributeSet.PostGameplayEffectExecute"]
+    post -->|"本端首次执行，设置 true 并广播"| attrSignal["OnAttributesInitialized"]
+    wait -->|"收到属性集通知时"| binding
+    attrSignal -->|"调用已绑定的 Widget 回调"| binding
+    post -.->|"标记尚未注册复制，客户端通知链不保证建立"| remote["OnRep_AttributesInitialized：客户端候选路径"]
 ```
 
-创建对象、初始化 ActorInfo、应用初始属性值是不同阶段。角色委托和 Widget 的指针检查均不能表示初始 GE 已完成；Widget 源码明确留下这部分 TODO。当前顺序还意味着授予回调中的自动激活尝试可能先于本次属性初值应用。
+角色引用通知和属性集首次执行通知承担不同职责：前者传递 ASC / AS，后者记录一次本端效果执行。Widget 现在会衔接这两个阶段，但真正的数值变化监听与刷新仍未实现。
+
+服务端角色广播早于本次初始 GE 应用，授予回调的自动激活尝试也可能先于属性初值应用。属性集的首次广播不筛选初始化效果或检查全部属性，不能等同于完整初值就绪。客户端四项数值的复制与初始化布尔标记的复制也必须分别核对。
 
 ## 能力类之间的关系
 
@@ -96,4 +107,4 @@ flowchart TD
 | 事件接收与缓存调用 | 目标 ASC 与能力蓝图；HitReact.CacheHitDirectionVector 调用时机待核验 |
 | 前后左右与名称 | BlueprintLibrary.GetHitDirection / GetHitDirectionName |
 
-初始化属性效果未配置时，检查 BaseCharacters 的 `InitializeAttributesEffect`；界面没有数值变化时，先确认 Widget 目前只缓存引用，属性监听与刷新并未在该类 C++ 中实现。
+初始化属性效果未配置时，检查 BaseCharacters 的 `InitializeAttributesEffect`；界面没有数值变化时，检查 Widget 的引用与属性通知两个阶段；BindToAttributeChange 仍未实现数值监听和刷新，客户端还需核对属性集标记的复制注册。

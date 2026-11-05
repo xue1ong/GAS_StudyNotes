@@ -13,8 +13,8 @@
 | `Characters/Enemy/GAS_EnemyCharacter` | `AGAS_EnemyCharacter` | [自身 ASC、BeginPlay 与服务端授予](Characters/EnemyCharacter.md) |
 | `Player/GAS_PlayerState` | `AGAS_PlayerState` | [玩家 ASC / AS 的创建与复制设置](Player/PlayerState.md) |
 | `Player/GAS_PlayerController` | `AGAS_PlayerController` | [输入成员、绑定与能力激活](Player/PlayerController.md) |
-| `AbilitySystem/GAS_AttributeSet` | `UGAS_AttributeSet` | [属性、访问器宏与复制通知](AbilitySystem/AttributeSet.md) |
-| `UI/GAS_WidgetComponent` | `UGAS_WidgetComponent` | [弱引用缓存与角色初始化通知](UI/WidgetComponent.md) |
+| `AbilitySystem/GAS_AttributeSet` | `UGAS_AttributeSet` | [属性、访问器、复制与首次效果执行通知](AbilitySystem/AttributeSet.md) |
+| `UI/GAS_WidgetComponent` | `UGAS_WidgetComponent` | [引用缓存、属性就绪通知与绑定入口](UI/WidgetComponent.md) |
 | `AbilitySystem/GAS_AbilitySystemComponent` | `UGAS_AbilitySystemComponent` | [授予回调、复制回调与自动激活检查](AbilitySystem/AbilitySystemComponent.md) |
 | `AbilitySystem/Abilities/GAS_GameplayAbility` | `UGAS_GameplayAbility` | [激活回调与公共调试属性](AbilitySystem/GameplayAbility.md) |
 | `AbilitySystem/Abilities/Player/GAS_Primary` | `UGAS_Primary` | [命中查询、事件发送与调试绘制](AbilitySystem/Primary.md) |
@@ -45,8 +45,11 @@ flowchart TD
     enemy -->|"BeginPlay：各端初始化后广播"| notify
     grant -->|"构造 Spec 后调用 GiveAbility"| callback["自定义 ASC.OnGiveAbility"]
     grant -->|"服务端授予循环结束后"| initial["InitializeAttributes：初始 GE 应用"]
-    notify -->|"本端已绑定的 Widget 接收"| widget["UGAS_WidgetComponent：更新引用"]
-    initial -->|"通过各自 ASC 更新"| attributes["UGAS_AttributeSet：四个属性"]
+    notify -->|"本端已绑定的 Widget 接收"| widget["UGAS_WidgetComponent：取得引用后检查属性标记"]
+    initial -->|"效果执行时通过各自 ASC 更新"| attributes["UGAS_AttributeSet：四个属性"]
+    attributes -->|"首次 PostGameplayEffectExecute，设置标记并广播"| attrSignal["OnAttributesInitialized"]
+    widget -->|"标记未就绪时监听属性集通知"| attrSignal
+    attrSignal -->|"本端通知已绑定的 Widget"| binding["BindToAttributeChange：当前 TODO"]
     callback -->|"精确匹配 ActivateOnGiven 时"| auto["TryActivateAbility"]
     replicated["客户端 ASC.OnRep_ActivateAbilities"] -->|"列表锁内逐项执行同一标签检查"| auto
     controller["AGAS_PlayerController"] -->|"当前 Pawn 接口返回玩家 ASC，传入输入 Tag"| byTag["TryActivateAbilitiesByTag"]
@@ -61,8 +64,8 @@ flowchart TD
 
 资源路径已核对文件存在；本次没有通过 UE 编辑器核验蓝图父类、默认数组、事件图和动画通知。未核验的关系以虚线标注。当前业务能力资源包含 `GA_GAS_Primary`、`GA_Secondary`、`GA_Teriary`、`GA_GAS_HitReact` 及其 Melee / Ranged 资源，其中 `GA_Teriary` 是实际文件拼写。
 
-源码涵盖自动激活、命中查询、受击事件与方向处理，以及四个属性的复制、初始 GE 应用和 Widget 数据引用缓存。初始效果资产为 `GE_Initialize_Attributes`，具体属性数值、角色引用和界面组件挂载待编辑器核验；Widget 当前没有属性变化绑定或界面数值刷新实现，源码也没有伤害结算。
+源码涵盖自动激活、命中查询、受击事件与方向处理，以及四个属性的复制、初始 GE 应用、属性集首次执行通知和 Widget 初始化衔接。初始效果资产为 `GE_Initialize_Attributes`，具体属性数值、角色引用和界面组件挂载待编辑器核验；Widget 当前没有属性变化绑定或界面数值刷新实现，源码也没有伤害结算。
 
-`OnASCInitialized` 的广播早于本次初始 GE 应用；Widget 的 `IsASCInitialized()` 只判断指针有效。这两处均不能单独表示属性初值已就绪。查询与发送、事件监听与方向缓存、方向名称与动画选择之间的蓝图连接仍待核验。完整关系见 [事件与受击方向索引](AbilitySystem/GameplayEvents.md)。
+`OnASCInitialized` 的广播早于本次初始 GE 应用；Widget 的 `IsASCInitialized()` 只判断指针有效。组件随后通过 `InitializeAttributeDelegate()` 检查属性集标记；该标记代表首次效果执行回调，不保证整个初始 GE 的所有属性修改完成，且当前未加入复制注册，不能认定客户端通知链已跑通。查询与发送、事件监听与方向缓存、方向名称与动画选择之间的蓝图连接仍待核验。完整关系见 [事件与受击方向索引](AbilitySystem/GameplayEvents.md)。
 
 项目模块与 Source 目录使用 `GAS_Learning`，业务 Content 和地图资源路径仍使用 `GAS_Acquaintance`；脚本包重定向见 [项目配置](Game/ProjectSetup.md)。
