@@ -1,10 +1,10 @@
 # AGAS_PlayerCharacter
 
-`AGAS_PlayerCharacter` 继承 `AGAS_BaseCharacters`。它不创建第二个 ASC，而是返回 PlayerState 上的组件，并负责把当前角色设为 AvatarActor。
+`AGAS_PlayerCharacter` 继承 `AGAS_BaseCharacters`。它从 PlayerState 取得 ASC 和属性集，把当前角色设为 AvatarActor，广播数据引用通知，并在服务端授予能力及应用初始属性效果。
 
 当前 PlayerState 实际创建的是 `UGAS_AbilitySystemComponent`。玩家通过接口访问该组件；与敌人自身持有组件的方式对照见 [敌人角色](EnemyCharacter.md)。
 
-源码：`Source/GAS_Acquaintance/Characters/GAS_PlayerCharacter.h`、`GAS_PlayerCharacter.cpp`。
+源码：`Source/GAS_Learning/Characters/GAS_PlayerCharacter.h`、`GAS_PlayerCharacter.cpp`。
 
 ## 头文件：成员与函数
 
@@ -12,15 +12,16 @@
 | --- | --- | --- |
 | public | `AGAS_PlayerCharacter()` | 胶囊体、控制旋转与摄像机配置 |
 | public override | `GetAbilitySystemComponent() const` | 转发到 AGAS_PlayerState 的组件 |
-| public override | `PossessedBy(AController*)` | 服务端初始化 ActorInfo 并授予 |
-| public override | `OnRep_PlayerState()` | 客户端引用复制回调中初始化 ActorInfo |
+| public override | `GetAttributeSet() const` | 转发到 AGAS_PlayerState 的属性集 |
+| public override | `PossessedBy(AController*)` | 服务端初始化、广播、授予能力、应用初始属性 |
+| public override | `OnRep_PlayerState()` | 客户端引用复制回调中初始化并广播 |
 | private | `TObjectPtr<USpringArmComponent> CameraBoom` | EditAnywhere，Camera；弹簧臂 |
 | private | `TObjectPtr<UCameraComponent> FollowCamera` | EditAnywhere，Camera；跟随摄像机 |
 
 
 ## AGAS_PlayerCharacter：胶囊体与摄像机
 
-摘自 `Source/GAS_Acquaintance/Characters/GAS_PlayerCharacter.cpp` 的构造函数，仅保留摄像机创建和挂接部分，省略空行：
+摘自 `Source/GAS_Learning/Characters/GAS_PlayerCharacter.cpp` 的构造函数，仅保留摄像机创建和挂接部分，省略空行：
 
 ```cpp
 CameraBoom = CreateDefaultSubobject<USpringArmComponent>(FName("CameraBoom"));
@@ -69,9 +70,24 @@ UAbilitySystemComponent* AGAS_PlayerCharacter::GetAbilitySystemComponent() const
 
 角色接口与 PlayerState 接口最终返回同一个 ASC。PlayerState 尚未就绪或类型不符时返回空，调用者必须处理这种情况。
 
+## GetAttributeSet：转发到 PlayerState
+
+摘自 `GAS_PlayerCharacter.cpp`，保留完整函数，省略空行：
+
+```cpp
+UAttributeSet* AGAS_PlayerCharacter::GetAttributeSet() const
+{
+    const AGAS_PlayerState* CurPlayerState = Cast<AGAS_PlayerState>(GetPlayerState());
+    if (!CurPlayerState) return nullptr;
+    return CurPlayerState->GetAttributeSet();
+}
+```
+
+与 ASC getter 一样，PlayerState 类型不兼容或尚未就绪时返回空。返回的是 PlayerState 持有的属性集，本类不再创建一份。
+
 ## PossessedBy：服务端初始化与授予
 
-摘自 `Source/GAS_Acquaintance/Characters/GAS_PlayerCharacter.cpp` 的 `PossessedBy()`，省略空行和原注释，保留完整函数逻辑：
+摘自 `Source/GAS_Learning/Characters/GAS_PlayerCharacter.cpp` 的 `PossessedBy()`，省略空行和原注释，保留完整函数逻辑：
 
 ```cpp
 void AGAS_PlayerCharacter::PossessedBy(AController* NewController)
@@ -80,7 +96,9 @@ void AGAS_PlayerCharacter::PossessedBy(AController* NewController)
     UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
     if (!CurAbilitySystemCom || !HasAuthority()) return;
     CurAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
+    OnASCInitialized.Broadcast(CurAbilitySystemCom,GetAttributeSet());
     GiveStartupAbilities();
+    InitializeAttributes();
 }
 ```
 
@@ -90,19 +108,20 @@ void AGAS_PlayerCharacter::PossessedBy(AController* NewController)
 
 ## OnRep_PlayerState：客户端初始化
 
+摘自 `GAS_PlayerCharacter.cpp`，保留完整函数，省略空行：
+
 ```cpp
 void AGAS_PlayerCharacter::OnRep_PlayerState()
 {
     Super::OnRep_PlayerState();
-
     UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
     if (!CurAbilitySystemCom) return;
-
     CurAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
+    OnASCInitialized.Broadcast(CurAbilitySystemCom,GetAttributeSet());
 }
 ```
 
-`OnRep_PlayerState()` 是 PlayerState 引用复制后的回调，不是手动复制整个 PlayerState 的函数。这里在客户端补齐 ActorInfo，不再次调用 `GiveStartupAbilities()`。
+`OnRep_PlayerState()` 是 PlayerState 引用复制后的回调，不是手动复制整个 PlayerState 的函数。这里在客户端补齐 ActorInfo 并广播，不再次调用 `GiveStartupAbilities()` 或 `InitializeAttributes()`。
 
 两个入口分别处理服务端占有和客户端 PlayerState 就绪。只读服务端的 `PossessedBy()`，会漏掉客户端初始化这一步。
 
@@ -113,7 +132,9 @@ flowchart TD
         serverSuper -->|"取得 ASC 后检查"| serverValid{"ASC 有效且 HasAuthority？"}
         serverValid -->|"否"| serverReturn["提前返回"]
         serverValid -->|"是"| serverInfo["InitAbilityActorInfo：PlayerState / 当前角色"]
-        serverInfo -->|"完成初始化后调用"| grant["GiveStartupAbilities"]
+        serverInfo -->|"先广播 ASC 与属性集指针"| serverSignal["OnASCInitialized.Broadcast"]
+        serverSignal -->|"广播之后调用"| grant["GiveStartupAbilities"]
+        grant -->|"授予之后调用"| values["InitializeAttributes：应用初始 GE"]
     end
     subgraph clientSide["客户端入口"]
         replicated["PlayerState 引用复制"] -->|"触发回调"| onRep["OnRep_PlayerState"]
@@ -121,11 +142,12 @@ flowchart TD
         clientSuper -->|"取得 ASC 后检查"| clientValid{"ASC 是否有效？"}
         clientValid -->|"否"| clientReturn["提前返回"]
         clientValid -->|"是"| clientInfo["InitAbilityActorInfo：PlayerState / 当前角色"]
-        clientInfo -->|"回调结束"| done["仅初始化，不再次授予能力"]
+        clientInfo -->|"广播 ASC 与属性集指针"| clientSignal["OnASCInitialized.Broadcast"]
+        clientSignal -->|"回调结束"| done["不授予能力，不应用初始 GE"]
     end
 ```
 
-两端流程独立展示，不代表 `PossessedBy()` 直接调用客户端回调。
+两端流程独立展示，不代表 `PossessedBy()` 直接调用客户端回调。广播参数的属性集 getter 可能返回空；广播早于本次服务端初始 GE 应用，因此 UI 不能仅凭这条通知判断属性值已就绪。
 
 ## 当前实现的边界
 

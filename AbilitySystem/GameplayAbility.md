@@ -2,7 +2,7 @@
 
 继承 `UGameplayAbility`，提供公共调试开关，并在激活回调中输出屏幕提示。
 
-源码：`Source/GAS_Acquaintance/AbilitySystem/Abilities/GAS_GameplayAbility.h`、`GAS_GameplayAbility.cpp`。核对日期：2026-11-03。
+源码：`Source/GAS_Learning/AbilitySystem/Abilities/GAS_GameplayAbility.h`、`GAS_GameplayAbility.cpp`。核对日期：2026-11-05。
 
 ## 头文件：成员与重写函数
 

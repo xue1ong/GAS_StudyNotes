@@ -1,8 +1,8 @@
 # GAS_Tags.h / GAS_Tags.cpp
 
-这两个文件不定义 UObject 类。`GAS_Tags.h` 通过 `NativeGameplayTags.h` 声明原生标签变量，`GAS_Tags.cpp` 在相同命名空间内定义完整字符串。核对日期：2026-11-03。
+这两个文件不定义 UObject 类。`GAS_Tags.h` 通过 `NativeGameplayTags.h` 声明原生标签变量，`GAS_Tags.cpp` 在相同命名空间内定义完整字符串。核对日期：2026-11-05。
 
-源码目录：`Source/GAS_Acquaintance/GameplayTags`。
+源码目录：`Source/GAS_Learning/GameplayTags`。
 
 ## GAS_Abilities：能力标识与自动激活约定
 

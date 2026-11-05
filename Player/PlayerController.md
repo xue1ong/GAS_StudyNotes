@@ -2,7 +2,7 @@
 
 `AGAS_PlayerController` 继承 `APlayerController`，把 Enhanced Input 事件转换成角色移动、视角更新、跳跃和按 Gameplay Tag 激活能力的调用。
 
-源码：`Source/GAS_Acquaintance/Player/GAS_PlayerController.h`、`GAS_PlayerController.cpp`。
+源码：`Source/GAS_Learning/Player/GAS_PlayerController.h`、`GAS_PlayerController.cpp`。
 
 ## 头文件：成员与函数
 
@@ -36,7 +36,7 @@
 
 `SetupInputComponent()` 先调用父类，然后取得 `UEnhancedInputLocalPlayerSubsystem`，将数组中的每个 Context 以优先级 `0` 加入，再把 `InputComponent` 转型为 `UEnhancedInputComponent` 并绑定输入。取得子系统或转型失败都会提前返回。
 
-摘自 `Source/GAS_Acquaintance/Player/GAS_PlayerController.cpp` 的 `SetupInputComponent()`，仅保留取得子系统与添加 Context 的部分，省略空行：
+摘自 `Source/GAS_Learning/Player/GAS_PlayerController.cpp` 的 `SetupInputComponent()`，仅保留取得子系统与添加 Context 的部分，省略空行：
 
 ```cpp
 UEnhancedInputLocalPlayerSubsystem* InputSystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
@@ -115,7 +115,7 @@ flowchart TD
 
 三个能力回调仅选择标签，例如 `Primary()` 调用 `ActivateAbility(GAS_Tags::GAS_Abilities::Primary)`，之后复用同一个函数。
 
-摘自 `Source/GAS_Acquaintance/Player/GAS_PlayerController.cpp` 的 `ActivateAbility()`，省略原注释，保留完整函数；仅调整空白排版：
+摘自 `Source/GAS_Learning/Player/GAS_PlayerController.cpp` 的 `ActivateAbility()`，省略原注释，保留完整函数；仅调整空白排版：
 
 ```cpp
 void AGAS_PlayerController::ActivateAbility(const FGameplayTag& AbilityTag) const

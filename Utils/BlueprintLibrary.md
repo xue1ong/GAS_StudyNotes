@@ -1,6 +1,6 @@
 # UGAS_BlueprintLibrary 与 EHitDirection
 
-源码：`Source/GAS_Acquaintance/Utils/GAS_BlueprintLibrary.h`、`GAS_BlueprintLibrary.cpp`。核对日期：2026-11-03。
+源码：`Source/GAS_Learning/Utils/GAS_BlueprintLibrary.h`、`GAS_BlueprintLibrary.cpp`。核对日期：2026-11-05。
 
 ## 头文件：枚举与类声明
 

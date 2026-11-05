@@ -2,7 +2,7 @@
 
 继承 [UGAS_GameplayAbility](GameplayAbility.md)，负责球形重叠查询、命中 Actor 收集、受击事件发送和命中范围调试绘制。
 
-源码：`Source/GAS_Acquaintance/AbilitySystem/Abilities/Player/GAS_Primary.h`、`GAS_Primary.cpp`。核对日期：2026-11-03。
+源码：`Source/GAS_Learning/AbilitySystem/Abilities/Player/GAS_Primary.h`、`GAS_Primary.cpp`。核对日期：2026-11-05。
 
 ## 头文件：成员与函数
 

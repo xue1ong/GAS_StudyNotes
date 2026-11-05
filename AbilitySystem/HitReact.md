@@ -2,7 +2,7 @@
 
 继承 [UGAS_GameplayAbility](GameplayAbility.md)，缓存当前受击角色的前向和指向事件发起者的单位方向，供外部逻辑读取。
 
-源码：`Source/GAS_Acquaintance/AbilitySystem/Abilities/Enemy/GAS_HitReact.h`、`GAS_HitReact.cpp`。核对日期：2026-11-03。
+源码：`Source/GAS_Learning/AbilitySystem/Abilities/Enemy/GAS_HitReact.h`、`GAS_HitReact.cpp`。核对日期：2026-11-05。
 
 ## 头文件：成员与函数
 

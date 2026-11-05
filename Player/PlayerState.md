@@ -1,8 +1,8 @@
 # AGAS_PlayerState
 
-`AGAS_PlayerState` 继承 `APlayerState` 并实现 `IAbilitySystemInterface`。项目把 ASC 放在 PlayerState 上，角色通过接口访问它。
+`AGAS_PlayerState` 继承 `APlayerState` 并实现 `IAbilitySystemInterface`。PlayerState 持有 ASC 和属性集，角色分别通过两个 getter 访问它们。
 
-源码：`Source/GAS_Acquaintance/Player/GAS_PlayerState.h`、`GAS_PlayerState.cpp`。
+源码：`Source/GAS_Learning/Player/GAS_PlayerState.h`、`GAS_PlayerState.cpp`。
 
 ## 头文件：成员与函数
 
@@ -10,22 +10,23 @@
 | --- | --- | --- |
 | public | `AGAS_PlayerState()` | 创建 ASC，设置网络更新参数与复制模式 |
 | public override | `GetAbilitySystemComponent() const` | 通过 GAS 接口返回组件 |
+| public | `GetAttributeSet() const` | 返回属性集基类指针 |
 | private | `TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent` | VisibleAnywhere，GAS\|Abilities；持有自定义 ASC |
+| private | `TObjectPtr<UAttributeSet> AttributeSet` | UPROPERTY；持有 UGAS_AttributeSet 实例 |
 
 
 ## AGAS_PlayerState：创建与配置组件
 
-摘自 `Source/GAS_Acquaintance/Player/GAS_PlayerState.cpp` 的构造函数，省略原注释，仅调整空白排版：
+摘自 `Source/GAS_Learning/Player/GAS_PlayerState.cpp` 的构造函数，省略原注释，仅调整空白排版：
 
 ```cpp
 AGAS_PlayerState::AGAS_PlayerState()
 {
     SetNetUpdateFrequency(100.f);
-
-    AbilitySystemComponent = CreateDefaultSubobject<UGAS_AbilitySystemComponent>(
-        TEXT("AbilitySystemComponent"));
+    AbilitySystemComponent = CreateDefaultSubobject<UGAS_AbilitySystemComponent>(FName("AbilitySystemComponent"));
     AbilitySystemComponent->SetIsReplicated(true);
     AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
+    AttributeSet = CreateDefaultSubobject<UGAS_AttributeSet>(FName("AttributeSet"));
 }
 ```
 
@@ -39,7 +40,7 @@ AGAS_PlayerState::AGAS_PlayerState()
 
 复制模式的含义已对照本机 UE 5.6 的 `Engine/Plugins/Runtime/GameplayAbilities/Source/GameplayAbilities/Public/AbilitySystemComponent.h` 中的枚举注释。
 
-## GetAbilitySystemComponent 与角色调用关系
+## GetAbilitySystemComponent、GetAttributeSet 与角色调用关系
 
 摘自 `GAS_PlayerState.cpp` 的 `GetAbilitySystemComponent()`，保留完整函数；原函数仅四行，不填充无关代码：
 
@@ -50,15 +51,19 @@ UAbilitySystemComponent* AGAS_PlayerState::GetAbilitySystemComponent() const
 }
 ```
 
-该 getter 只返回成员，不初始化角色信息。[AGAS_PlayerCharacter](../Characters/PlayerCharacter.md) 的初始化调用把 PlayerState 作为 OwnerActor、当前角色作为 AvatarActor。ASC 的持有者和在场景中作用的角色是两个对象。
+`GetAttributeSet() const` 同样直接返回 `AttributeSet`。两者只返回成员，不应用初始 GE。
+
+该 ASC getter 不初始化角色信息。[AGAS_PlayerCharacter](../Characters/PlayerCharacter.md) 的初始化调用把 PlayerState 作为 OwnerActor、当前角色作为 AvatarActor。ASC 的持有者和在场景中作用的角色是两个对象。
 
 这种放置方式便于在 Pawn 更换时继续使用同一个 PlayerState 上的 ASC，但当前项目没有实现完整的死亡、重生、能力清理或状态重置流程。不能由此认定重生功能已经完成。
 
-PlayerState 构造函数只负责创建和配置 ASC；与具体角色的关联由 [玩家角色](../Characters/PlayerCharacter.md) 的服务端和客户端回调完成。
+PlayerState 构造函数创建 ASC 与属性集，并配置 ASC 复制；与具体角色的关联由 [玩家角色](../Characters/PlayerCharacter.md) 的服务端和客户端回调完成。初始 GE 的应用由角色调用基类函数负责。
 
 ```mermaid
 flowchart TD
     state["AGAS_PlayerState"] -->|"构造时创建并持有"| asc["UGAS_AbilitySystemComponent：以基类指针暴露"]
+    state -->|"同时创建，GetAttributeSet 返回"| attributes["UGAS_AttributeSet：以基类指针暴露"]
+    character["AGAS_PlayerCharacter"] -->|"Getter 转发取得属性集并广播"| attributes
     state -->|"作为 OwnerActor 参数"| info["ASC.InitAbilityActorInfo"]
     character["AGAS_PlayerCharacter"] -->|"作为 AvatarActor 参数"| info
     character -->|"getter 访问当前 PlayerState"| state
@@ -76,5 +81,7 @@ flowchart TD
 - 当前玩家的 PlayerState 必须能转型为 `AGAS_PlayerState`，否则角色的 ASC getter 返回空。
 - 在编辑器检查 GameMode 的 PlayerState Class，确认使用了预期类型或派生蓝图。
 - ASC 存在还不意味着 ActorInfo 已初始化；继续检查 `PossessedBy()` / `OnRep_PlayerState()`。
+
+属性复制和四个数值访问器见 [UGAS_AttributeSet](../AbilitySystem/AttributeSet.md)，初值效果应用见 [角色基类](../Characters/CharacterBase.md)。
 
 参见：[GameMode](../Game/GameMode.md)、[启动能力与激活流程](../AbilitySystem/StartupAbilities.md)。

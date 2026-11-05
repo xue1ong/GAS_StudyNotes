@@ -1,14 +1,14 @@
 # 配置文件、构建类与资源索引
 
-本页按实际文件归档非玩法类内容。参考项目为 `..\GAS_Acquaintance`，核对日期：2026-11-03。
+本页按实际文件归档非玩法类内容。参考项目为 `..\GAS_Learning`，核对日期：2026-11-05。
 
-## GAS_Acquaintance.uproject
+## GAS_Learning.uproject
 
-引擎关联为 `5.6`；运行时模块为 `GAS_Acquaintance`，加载阶段 Default。`GameplayAbilities` 插件已启用，`ModelingToolsEditorMode` 仅面向 Editor 启用。
+引擎关联为 `5.6`；运行时模块为 `GAS_Learning`，加载阶段 Default。`GameplayAbilities` 插件已启用，`ModelingToolsEditorMode` 仅面向 Editor 启用。
 
-## GAS_Acquaintance.Build.cs：GAS_Acquaintance
+## GAS_Learning.Build.cs：GAS_Learning
 
-构建规则类继承 `ModuleRules`。构造函数设置 `PCHUsageMode.UseExplicitOrSharedPCHs`；公开依赖为 Core、CoreUObject、Engine、InputCore、EnhancedInput、GameplayAbilities、GameplayTags、GameplayTasks，私有依赖数组为空。
+构建规则类继承 `ModuleRules`。构造函数设置 `PCHUsageMode.UseExplicitOrSharedPCHs`；公开依赖为 Core、CoreUObject、Engine、InputCore、EnhancedInput、GameplayAbilities、GameplayTags、GameplayTasks、UMG，私有依赖数组为空。
 
 | 模块 | 项目中的使用者 |
 | --- | --- |
@@ -16,19 +16,20 @@
 | GameplayAbilities | 自定义 ASC、能力类、GAS 接口和 Spec |
 | GameplayTags | GAS_Tags 命名空间及 Tag 查询 |
 | GameplayTasks | GAS 相关依赖；当前没有自定义 Task 类 |
+| UMG | UGAS_WidgetComponent 继承的 UWidgetComponent 及 UI 类型依赖 |
 
 ## Target.cs：游戏与编辑器目标类
 
 | 文件 / 类 | 基类 | 构造设置 |
 | --- | --- | --- |
-| `Source/GAS_Acquaintance.Target.cs` / GAS_AcquaintanceTarget | TargetRules | TargetType.Game |
-| `Source/GAS_AcquaintanceEditor.Target.cs` / GAS_AcquaintanceEditorTarget | TargetRules | TargetType.Editor |
+| `Source/GAS_Learning.Target.cs` / GAS_LearningTarget | TargetRules | TargetType.Game |
+| `Source/GAS_LearningEditor.Target.cs` / GAS_LearningEditorTarget | TargetRules | TargetType.Editor |
 
-两个构造函数均使用 BuildSettingsVersion.V5、EngineIncludeOrderVersion.Unreal5_6，并将 `GAS_Acquaintance` 加入 ExtraModuleNames。
+两个构造函数均使用 BuildSettingsVersion.V5、EngineIncludeOrderVersion.Unreal5_6，并将 `GAS_Learning` 加入 ExtraModuleNames。
 
-## GAS_Acquaintance.h / .cpp：模块入口
+## GAS_Learning.h / .cpp：模块入口
 
-头文件只包含 `CoreMinimal.h`，不定义玩法类；源文件通过 `IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, GAS_Acquaintance, "GAS_Acquaintance")` 注册主游戏模块。
+头文件只包含 `CoreMinimal.h`，不定义玩法类；源文件通过 `IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, GAS_Learning, "GAS_Learning")` 注册主游戏模块。
 
 ## Config：地图、GameMode 与输入类型
 
@@ -60,6 +61,17 @@ flowchart TD
 ```
 
 图中是配置依赖，不表示运行时调用顺序。GameMode 类配置见 [BP_GAS_Gamemode](GameMode.md)。
+
+## 脚本模块重定向与资源路径
+
+当前源码 API 宏为 `GAS_LEARNING_API`，头文件包含路径以 `GAS_Learning/...` 为根。`DefaultEngine.ini` 保留下面的脚本包重定向：
+
+```ini
+[CoreRedirects]
++PackageRedirects=(OldName="/Script/GAS_Acquaintance",NewName="/Script/GAS_Learning")
+```
+
+项目文件、构建类、Target 和 C++ 模块使用 GAS_Learning。业务 Content、默认地图与 GameMode 资源路径仍含 GAS_Acquaintance；脚本包重定向不等于资源目录被重命名。
 
 ## Content：业务资产
 
@@ -97,6 +109,7 @@ Blueprints/
     AbilityActions/IA_Secondary.uasset
     AbilityActions/IA_Tertiary.uasset
   AbilitySystem/
+    GameplayEffects/GE_Initialize_Attributes.uasset
     PlayerAbilities/GA_GAS_Primary.uasset
     PlayerAbilities/GA_Secondary.uasset
     PlayerAbilities/GA_Teriary.uasset
@@ -108,3 +121,5 @@ Blueprints/
 `/Game/...` 对应磁盘 `Content/...`；GameMode 路径的 `_C` 指蓝图生成类。上述文件存在已核对，蓝图父类、默认引用、动画通知轨道和能力事件图没有经过本次编辑器核验。
 
 玩法类的完整文件索引见 [README](../README.md)，成员与函数说明保留在各类笔记中。
+
+`GE_Initialize_Attributes` 文件存在已确认；效果的属性修饰器、数值、持续策略和角色 `InitializeAttributesEffect` 实际引用仍需编辑器核验。当前业务目录没有发现独立 WBP 资产，不据此推断其他蓝图中是否配置 WidgetComponent。

@@ -2,7 +2,7 @@
 
 继承 `UAbilitySystemComponent`，供玩家和敌人共用，负责在能力授予和能力列表复制回调中检查自动激活标签。
 
-源码：`Source/GAS_Acquaintance/AbilitySystem/GAS_AbilitySystemComponent.h`、`GAS_AbilitySystemComponent.cpp`。核对日期：2026-11-03。
+源码：`Source/GAS_Learning/AbilitySystem/GAS_AbilitySystemComponent.h`、`GAS_AbilitySystemComponent.cpp`。核对日期：2026-11-05。
 
 ## 头文件：函数声明
 
@@ -83,9 +83,13 @@ flowchart TD
 | --- | --- |
 | 创建组件并设置 Mixed | [AGAS_PlayerState](../Player/PlayerState.md) |
 | 创建组件并设置 Minimal | [AGAS_EnemyCharacter](../Characters/EnemyCharacter.md) |
+| 属性集定义、属性访问器与复制通知 | [UGAS_AttributeSet](AttributeSet.md) |
+| 本端 ASC / 属性集引用广播、初始 GE 应用 | [AGAS_BaseCharacters](../Characters/CharacterBase.md) 及两个角色调用点 |
 | 初始化 OwnerActor / AvatarActor | [AGAS_PlayerCharacter](../Characters/PlayerCharacter.md)、AGAS_EnemyCharacter |
 | 保存能力类数组、构造 Spec、调用 GiveAbility | AGAS_BaseCharacters |
 | 输入 Tag 检索激活 | [AGAS_PlayerController](../Player/PlayerController.md) |
 | 按自动激活标签检查 Spec | 本类 |
 
 持有者的成员类型为 `TObjectPtr<UAbilitySystemComponent>`，getter 返回 `UAbilitySystemComponent*`；实际对象为本类，通过基类接口仍会进入重写的回调。
+
+授予回调可能在角色 `InitializeAttributes()` 之前尝试激活。ActorInfo 已初始化不等于初始 GE 已应用；该顺序详见 [角色基类](../Characters/CharacterBase.md) 和 [初始化关系索引](StartupAbilities.md)。

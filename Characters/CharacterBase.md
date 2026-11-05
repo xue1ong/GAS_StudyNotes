@@ -1,8 +1,8 @@
 # AGAS_BaseCharacters
 
-`AGAS_BaseCharacters` 继承 `ACharacter`，集中管理角色的 GAS 接口和启动能力授予逻辑，供具体角色子类复用。
+`AGAS_BaseCharacters` 继承 `ACharacter`，集中管理 GAS 访问接口、能力授予、初始属性效果与数据就绪委托，供具体角色子类复用。
 
-源码：`Source/GAS_Acquaintance/Characters/GAS_BaseCharacters.h`、`GAS_BaseCharacters.cpp`。
+源码：`Source/GAS_Learning/Characters/GAS_BaseCharacters.h`、`GAS_BaseCharacters.cpp`。
 
 ## 头文件：成员与函数
 
@@ -10,7 +10,11 @@
 | --- | --- | --- |
 | public | `AGAS_BaseCharacters()` | 公共 Actor Tick 与骨骼更新设置 |
 | public override | `GetAbilitySystemComponent() const` | GAS 接口；基类默认返回空 |
+| public virtual | `GetAttributeSet() const` | 头文件内联默认返回 nullptr，派生类提供属性集 |
+| public | `FASCInitialized OnASCInitialized` | ASC 与属性集的本端动态多播通知 |
 | protected | `GiveStartupAbilities()` | 取得派生类提供的 ASC，逐项授予 |
+| protected | `InitializeAttributes()` | 创建初始化 GE Spec 并对自身应用 |
+| private | `TSubclassOf<UGameplayEffect> InitializeAttributesEffect` | EditDefaultsOnly，GAS\|Effects；初始属性效果类 |
 | private | `StartupAbilities` | EditDefaultsOnly，GAS\|Abilities；保存 UGameplayAbility 子类数组 |
 
 
@@ -30,11 +34,11 @@ AGAS_BaseCharacters::AGAS_BaseCharacters()
 
 当前没有角色逐帧逻辑，因此关闭 Actor Tick。骨骼网格组件使用单独的动画 Tick 设置，源码注释说明其目的是让 Dedicated Server 在模型未被渲染时仍更新姿态和骨骼变换。不能把关闭 Actor Tick 理解为关闭骨骼动画更新。
 
-## GetAbilitySystemComponent：接口与组件来源
+## GetAbilitySystemComponent、GetAttributeSet：数据来源
 
 基类实现 `IAbilitySystemInterface`，但 `GetAbilitySystemComponent()` 当前只返回 `nullptr`，也没有创建 ASC。具体子类负责重写：玩家从 [PlayerState](../Player/PlayerState.md) 返回 ASC，敌人返回自身创建的 ASC。
 
-基类不持有组件；玩家通过 PlayerState 访问，敌人返回自身组件。接口的实际返回值由派生类实现决定。
+基类的 `GetAttributeSet()` 在头文件内联返回 `nullptr`。它不持有 ASC 或属性集；玩家通过 PlayerState 取得两者，敌人返回自身对象。
 
 ```mermaid
 flowchart TD
@@ -54,7 +58,7 @@ UPROPERTY(EditDefaultsOnly, Category = "GAS|Abilities")
 TArray<TSubclassOf<UGameplayAbility>> StartupAbilities;
 ```
 
-数组保存能力**类**，在类默认值中编辑；它不是运行中的能力实例列表。以下摘自 `Source/GAS_Acquaintance/Characters/GAS_BaseCharacters.cpp` 的 `GiveStartupAbilities()` 函数体，省略函数外壳、空行及注释：
+数组保存能力**类**，在类默认值中编辑；它不是运行中的能力实例列表。以下摘自 `Source/GAS_Learning/Characters/GAS_BaseCharacters.cpp` 的 `GiveStartupAbilities()` 函数体，省略函数外壳、空行及注释：
 
 ```cpp
 UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
@@ -85,4 +89,40 @@ flowchart TD
 
 启动数组接受 `UGameplayAbility` 的子类，没有强制要求使用 [UGAS_GameplayAbility](../AbilitySystem/GameplayAbility.md)。是否采用自定义能力基类取决于具体资产父类。
 
-参见：[启动能力与激活流程](../AbilitySystem/StartupAbilities.md)。
+## InitializeAttributes：应用初始属性效果
+
+摘自 `GAS_BaseCharacters.cpp`，保留完整函数，省略空行和注释：
+
+```cpp
+void AGAS_BaseCharacters::InitializeAttributes()
+{
+    checkf(IsValid(InitializeAttributesEffect),TEXT("InitializeAttributesEffect not set."));
+    UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
+    if (!CurAbilitySystemCom) return;
+    const FGameplayEffectContextHandle ContextHandle = CurAbilitySystemCom->MakeEffectContext();
+    const FGameplayEffectSpecHandle SpecHandle = CurAbilitySystemCom->MakeOutgoingSpec(InitializeAttributesEffect, 1.f, ContextHandle);
+    CurAbilitySystemCom->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+}
+```
+
+函数要求 `InitializeAttributesEffect` 是有效效果类，构造等级 1 的 Spec，再应用到当前 ASC。检查 ASC 之前先执行 `checkf`；源码没有显式检查 `SpecHandle.IsValid()` 后再解引用 Data。
+
+函数自身没有权限分支；当前玩家和敌人的调用点均在服务端，并在 `GiveStartupAbilities()` 之后调用。由于授予回调可尝试自动激活能力，当前顺序不保证这些自动激活尝试发生前已有 GE 初始属性值。具体属性数值取决于效果资产及角色默认类引用，文件存在不能证明配置正确。
+
+## OnASCInitialized：数据引用通知
+
+头文件通过 `DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FASCInitialized,UAbilitySystemComponent*,ASC,UAttributeSet*,AS)` 声明委托类型；公开成员 `OnASCInitialized` 传递 ASC 与属性集两个指针，未标记 BlueprintAssignable。
+
+```mermaid
+flowchart TD
+    init["玩家或敌人：InitAbilityActorInfo"] -->|"在各自本端初始化后"| broadcast["OnASCInitialized.Broadcast：ASC / AS"]
+    broadcast -->|"通知已绑定的组件"| widget["WidgetComponent.OnSACInitialized"]
+    broadcast -->|"服务端继续"| give["GiveStartupAbilities"]
+    give -->|"授予循环结束后"| attributes["InitializeAttributes"]
+    attributes -->|"Context 与等级 1 的 Spec"| effect["ASC.ApplyGameplayEffectSpecToSelf"]
+    effect -->|"根据效果配置改变"| values["UGAS_AttributeSet 属性数据"]
+```
+
+广播早于本次初始 GE 应用；它不表示属性初值已完成，也不是 RPC。客户端角色回调仅初始化和广播，不再次授予能力或应用初始 GE。
+
+参见：[属性集](../AbilitySystem/AttributeSet.md)、[Widget 组件](../UI/WidgetComponent.md)、[初始化关系索引](../AbilitySystem/StartupAbilities.md)。
