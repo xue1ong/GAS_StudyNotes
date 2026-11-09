@@ -7,7 +7,7 @@ GameMode 负责游戏规则和玩家对象的创建配置；联网游戏中的 G
 资产路径：
 
 ```text
-Content/GAS_Acquaintance/Blueprints/Game/BP_GAS_Gamemode.uasset
+Content/GAS_Learning/Blueprints/Game/BP_GAS_Gamemode.uasset
 ```
 
 ## 已确认的项目配置
@@ -15,9 +15,9 @@ Content/GAS_Acquaintance/Blueprints/Game/BP_GAS_Gamemode.uasset
 `Config/DefaultEngine.ini` 的 `GameMapsSettings` 段指定：
 
 ```ini
-GameDefaultMap=/Game/GAS_Acquaintance/Maps/Map_Main.Map_Main
-EditorStartupMap=/Game/GAS_Acquaintance/Maps/Map_Main.Map_Main
-GlobalDefaultGameMode=/Game/GAS_Acquaintance/Blueprints/Game/BP_GAS_Gamemode.BP_GAS_Gamemode_C
+GameDefaultMap=/Game/GAS_Learning/Maps/Map_Main.Map_Main
+EditorStartupMap=/Game/GAS_Learning/Maps/Map_Main.Map_Main
+GlobalDefaultGameMode=/Game/GAS_Learning/Blueprints/Game/BP_GAS_Gamemode.BP_GAS_Gamemode_C
 ```
 
 即项目默认运行地图和编辑器启动地图都是 `Map_Main`，项目默认 GameMode 为 `BP_GAS_Gamemode`。具体地图的 World Settings 还可能覆盖 GameMode，运行时应检查该项；本次未核验地图内部设置。
@@ -46,7 +46,7 @@ flowchart TD
 
 实线表示已确认的配置或 C++ 依赖，虚线表示尚需在编辑器核验的配置关系。
 
-当前参考项目模块为 `GAS_Learning`，上述 `/Game/GAS_Acquaintance/...` 是仍在使用的实际资源路径。
+当前参考项目模块为 `GAS_Learning`，上述 `/Game/GAS_Learning/...` 是仍在使用的实际资源路径。
 
 ## 与角色类函数的关系
 

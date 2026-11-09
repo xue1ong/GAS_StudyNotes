@@ -87,19 +87,16 @@ UAttributeSet* AGAS_PlayerCharacter::GetAttributeSet() const
 
 ## PossessedBy：服务端初始化与授予
 
-摘自 `Source/GAS_Learning/Characters/GAS_PlayerCharacter.cpp` 的 `PossessedBy()`，省略空行和原注释，保留完整函数逻辑：
+以下摘自 `GAS_PlayerCharacter.cpp` 的 `PossessedBy()`，保留函数体开头至初始属性调用，省略空行及注释。
 
 ```cpp
-void AGAS_PlayerCharacter::PossessedBy(AController* NewController)
-{
-    Super::PossessedBy(NewController);
-    UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
-    if (!CurAbilitySystemCom || !HasAuthority()) return;
-    CurAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
-    OnASCInitialized.Broadcast(CurAbilitySystemCom,GetAttributeSet());
-    GiveStartupAbilities();
-    InitializeAttributes();
-}
+Super::PossessedBy(NewController);
+UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
+if (!CurAbilitySystemCom || !HasAuthority()) return;
+CurAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
+OnASCInitialized.Broadcast(CurAbilitySystemCom,GetAttributeSet());
+GiveStartupAbilities();
+InitializeAttributes();
 ```
 
 调用顺序与客户端初始化的区别见下方流程图。
@@ -108,17 +105,14 @@ void AGAS_PlayerCharacter::PossessedBy(AController* NewController)
 
 ## OnRep_PlayerState：客户端初始化
 
-摘自 `GAS_PlayerCharacter.cpp`，保留完整函数，省略空行：
+以下摘自 `GAS_PlayerCharacter.cpp` 的 `OnRep_PlayerState()`，保留广播至 Health 委托绑定的部分，省略空行。
 
 ```cpp
-void AGAS_PlayerCharacter::OnRep_PlayerState()
-{
-    Super::OnRep_PlayerState();
-    UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
-    if (!CurAbilitySystemCom) return;
-    CurAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(), this);
-    OnASCInitialized.Broadcast(CurAbilitySystemCom,GetAttributeSet());
-}
+CurAbilitySystemCom->InitAbilityActorInfo(GetPlayerState(),this);
+OnASCInitialized.Broadcast(CurAbilitySystemCom,GetAttributeSet());
+UGAS_AttributeSet* GAS_AttributeSet = Cast<UGAS_AttributeSet>(GetAttributeSet());
+if (!GAS_AttributeSet) return;
+CurAbilitySystemCom->GetGameplayAttributeValueChangeDelegate(GAS_AttributeSet->GetHealthAttribute()).AddUObject(this,&ThisClass::OnHealthChanged);
 ```
 
 `OnRep_PlayerState()` 是 PlayerState 引用复制后的回调，不是手动复制整个 PlayerState 的函数。这里在客户端补齐 ActorInfo 并广播，不再次调用 `GiveStartupAbilities()` 或 `InitializeAttributes()`。
@@ -135,6 +129,7 @@ flowchart TD
         serverInfo -->|"先广播 ASC 与属性集指针"| serverSignal["OnASCInitialized.Broadcast"]
         serverSignal -->|"广播之后调用"| grant["GiveStartupAbilities"]
         grant -->|"授予之后调用"| values["InitializeAttributes：应用初始 GE"]
+        values -->|"属性集转型成功后"| healthServer["订阅 Health 变化"]
     end
     subgraph clientSide["客户端入口"]
         replicated["PlayerState 引用复制"] -->|"触发回调"| onRep["OnRep_PlayerState"]
@@ -143,7 +138,7 @@ flowchart TD
         clientValid -->|"否"| clientReturn["提前返回"]
         clientValid -->|"是"| clientInfo["InitAbilityActorInfo：PlayerState / 当前角色"]
         clientInfo -->|"广播 ASC 与属性集指针"| clientSignal["OnASCInitialized.Broadcast"]
-        clientSignal -->|"回调结束"| done["不授予能力，不应用初始 GE"]
+        clientSignal -->|"属性集转型成功后"| healthClient["订阅 Health 变化"]
     end
 ```
 
@@ -154,3 +149,7 @@ flowchart TD
 当前没有保存授予返回的 Spec Handle，也没有实现重占有时防止重复授予、换 Pawn 时取消旧能力或重生重置的逻辑。这些行为不属于本类当前实现。
 
 参见：[角色基类](CharacterBase.md)、[PlayerState](../Player/PlayerState.md)、[启动能力与激活流程](../AbilitySystem/StartupAbilities.md)。
+
+## Health 委托的绑定位置
+
+服务端在初始属性应用之后绑定，客户端在 `OnRep_PlayerState()` 广播之后绑定。 两条角色实现均要求属性集能转型为 `UGAS_AttributeSet`。成功后用 `AddUObject` 将 ASC 的 Health 变化委托交给基类 `OnHealthChanged()`。该绑定接收之后发生的变化，建立时没有主动读取当前 Health 执行死亡判断。参见 [角色基类](CharacterBase.md)。

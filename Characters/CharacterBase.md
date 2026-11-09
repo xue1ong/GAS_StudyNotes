@@ -91,27 +91,24 @@ flowchart TD
 
 ## InitializeAttributes：应用初始属性效果
 
-摘自 `GAS_BaseCharacters.cpp`，保留完整函数，省略空行和注释：
+以下摘自 `GAS_BaseCharacters.cpp` 的 `InitializeAttributes()`，保留 Spec 校验、应用和标记部分，省略空行及注释。
 
 ```cpp
-void AGAS_BaseCharacters::InitializeAttributes()
+if (!SpecHandle.IsValid()) return;
+CurAbilitySystemCom->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+if (UGAS_AttributeSet* Attributes = Cast<UGAS_AttributeSet>(GetAttributeSet()))
 {
-    checkf(IsValid(InitializeAttributesEffect),TEXT("InitializeAttributesEffect not set."));
-    UAbilitySystemComponent* CurAbilitySystemCom = GetAbilitySystemComponent();
-    if (!CurAbilitySystemCom) return;
-    const FGameplayEffectContextHandle ContextHandle = CurAbilitySystemCom->MakeEffectContext();
-    const FGameplayEffectSpecHandle SpecHandle = CurAbilitySystemCom->MakeOutgoingSpec(InitializeAttributesEffect, 1.f, ContextHandle);
-    CurAbilitySystemCom->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+    Attributes->MarkAttributesInitialized();
 }
 ```
 
-函数要求 `InitializeAttributesEffect` 是有效效果类，构造等级 1 的 Spec，再应用到当前 ASC。检查 ASC 之前先执行 `checkf`；源码没有显式检查 `SpecHandle.IsValid()` 后再解引用 Data。
+函数要求 `InitializeAttributesEffect` 是有效效果类，构造等级 1 的 Spec，再应用到当前 ASC。检查 ASC 之前先执行 `checkf`；函数检查 `SpecHandle.IsValid()` 后才解引用 Data。应用调用返回后，若属性集可转型为 `UGAS_AttributeSet`，则调用 `MarkAttributesInitialized()`。
 
 函数自身没有权限分支；当前玩家和敌人的调用点均在服务端，并在 `GiveStartupAbilities()` 之后调用。由于授予回调可尝试自动激活能力，当前顺序不保证这些自动激活尝试发生前已有 GE 初始属性值。具体属性数值取决于效果资产及角色默认类引用，文件存在不能证明配置正确。
 
 ## OnASCInitialized：数据引用通知
 
-头文件通过 `DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FASCInitialized,UAbilitySystemComponent*,ASC,UAttributeSet*,AS)` 声明委托类型；公开成员 `OnASCInitialized` 传递 ASC 与属性集两个指针，未标记 BlueprintAssignable。
+头文件通过 `DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FASCInitialized,UAbilitySystemComponent*,ASC,UAttributeSet*,AS)` 声明委托类型；公开成员 `OnASCInitialized` 传递 ASC 与属性集两个指针，标记为 BlueprintAssignable。
 
 ```mermaid
 flowchart TD
@@ -123,6 +120,20 @@ flowchart TD
     effect -->|"根据效果配置改变"| values["UGAS_AttributeSet 属性数据"]
 ```
 
-广播早于本次初始 GE 应用；它不表示属性初值已完成，也不是 RPC。Widget 取得引用后还会检查属性集的 `bAttributesInitialized`，按状态等待 `OnAttributesInitialized` 或直接进入绑定入口；该标记的首次执行语义和复制注册缺口见属性集页面。客户端角色回调仅初始化和广播，不再次授予能力或应用初始 GE。
+角色先广播 ASC 与属性集引用，再在服务端应用初始 GE。已绑定的控件会先读取本端快照，并通过 ASC 数值变化委托接收随后发生的更新。
+
+## 生命值监听与存活状态
+
+头文件将 `bAlive` 定义为默认 true 的私有布尔值。`IsAlive()` 与 `SetAlive(bool)` 是公开内联访问入口。受保护的 `OnHealthChanged()` 在新值小于或等于零时调用 `HandleDeath()`。后者将 `bAlive` 置为 false，并在 GEngine 有效时显示三秒的红色调试文字。公开的 BlueprintCallable `HandleRespawn()` 将 `bAlive` 恢复为 true。
+
+```mermaid
+flowchart TD
+    health["ASC Health 变化"] -->|"将 NewValue 传给已绑定的角色"| change["OnHealthChanged"]
+    change -->|"NewValue 小于或等于零"| death["HandleDeath"]
+    death -->|"写入 false，并按 GEngine 状态输出调试信息"| alive["本端 bAlive"]
+    respawn["HandleRespawn"] -->|"写入 true"| alive
+```
+
+`bAlive` 由本端代码写入。重复收到非正生命值回调会再次执行死亡处理。`HandleRespawn()` 的实现范围是存活标志，实际重生行为取决于调用者。
 
 参见：[属性集](../AbilitySystem/AttributeSet.md)、[Widget 组件](../UI/WidgetComponent.md)、[初始化关系索引](../AbilitySystem/StartupAbilities.md)。

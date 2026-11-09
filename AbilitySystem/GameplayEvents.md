@@ -37,7 +37,7 @@ flowchart TD
 
 ## 业务资产入口
 
-路径以 `Content/GAS_Acquaintance/Blueprints` 为根：
+路径以 `Content/GAS_Learning/Blueprints` 为根：
 
 | 目录 | 文件 | 待编辑器核验内容 |
 | --- | --- | --- |

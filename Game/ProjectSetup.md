@@ -1,6 +1,6 @@
 # 配置文件、构建类与资源索引
 
-本页按实际文件归档非玩法类内容。参考项目为 `..\GAS_Learning`，核对日期：2026-11-05。
+本页按实际文件归档非玩法类内容。参考项目为 `..\GAS_Learning`，核对日期：2026-11-09。
 
 ## GAS_Learning.uproject
 
@@ -36,9 +36,9 @@
 `DefaultEngine.ini` 的 GameMapsSettings 指定：
 
 ```ini
-GameDefaultMap=/Game/GAS_Acquaintance/Maps/Map_Main.Map_Main
-EditorStartupMap=/Game/GAS_Acquaintance/Maps/Map_Main.Map_Main
-GlobalDefaultGameMode=/Game/GAS_Acquaintance/Blueprints/Game/BP_GAS_Gamemode.BP_GAS_Gamemode_C
+GameDefaultMap=/Game/GAS_Learning/Maps/Map_Main.Map_Main
+EditorStartupMap=/Game/GAS_Learning/Maps/Map_Main.Map_Main
+GlobalDefaultGameMode=/Game/GAS_Learning/Blueprints/Game/BP_GAS_Gamemode.BP_GAS_Gamemode_C
 ```
 
 `DefaultInput.ini` 指定：
@@ -71,14 +71,19 @@ flowchart TD
 +PackageRedirects=(OldName="/Script/GAS_Acquaintance",NewName="/Script/GAS_Learning")
 ```
 
-项目文件、构建类、Target 和 C++ 模块使用 GAS_Learning。业务 Content、默认地图与 GameMode 资源路径仍含 GAS_Acquaintance；脚本包重定向不等于资源目录被重命名。
+模块、业务资源、默认地图与 GameMode 均使用 GAS_Learning。上述配置为旧脚本包引用提供重定向。
 
 ## Content：业务资产
 
-以下路径以 `Content/GAS_Acquaintance` 为根：
+以下路径以 `Content/GAS_Learning` 为根：
 
 ```text
 Maps/Map_Main.umap
+UI/
+  BP_PlayerStatsWidget.uasset
+  BP_ManaBar.uasset
+  BP_HealthBar.uasset
+  BP_GAS_WidgetComponent.uasset
 Blueprints/
   Game/BP_GAS_Gamemode.uasset
   Player/BP_GAS_PlayerController.uasset
@@ -108,8 +113,11 @@ Blueprints/
     AbilityActions/IA_Primary.uasset
     AbilityActions/IA_Secondary.uasset
     AbilityActions/IA_Tertiary.uasset
+    AbilityActions/IA_LevelUpAbility.uasset
   AbilitySystem/
     GameplayEffects/GE_Initialize_Attributes.uasset
+    GameplayEffects/Player/GE_PlayerDamage.uasset
+    GameplayEffects/Player/CT_PlayerDamage.uasset
     PlayerAbilities/GA_GAS_Primary.uasset
     PlayerAbilities/GA_Secondary.uasset
     PlayerAbilities/GA_Teriary.uasset
@@ -122,4 +130,4 @@ Blueprints/
 
 玩法类的完整文件索引见 [README](../README.md)，成员与函数说明保留在各类笔记中。
 
-`GE_Initialize_Attributes` 文件存在已确认；效果的属性修饰器、数值、持续策略和角色 `InitializeAttributesEffect` 实际引用仍需编辑器核验。当前业务目录没有发现独立 WBP 资产，不据此推断其他蓝图中是否配置 WidgetComponent。
+初始化效果、伤害效果与曲线、升级输入和四个 UI 资产均有对应磁盘文件。效果数值与引用、升级 Action 的蓝图绑定、UI 父类和挂载待编辑器核验。

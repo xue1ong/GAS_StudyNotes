@@ -1,6 +1,6 @@
 # 跨类关系索引：授予与激活
 
-本页按所属类串联关系，成员和函数实现归入各类页面。核对日期：2026-11-05。
+本页按所属类串联关系，成员和函数实现归入各类页面。核对日期：2026-11-09。
 
 ## 组件与 ActorInfo 所属关系
 
@@ -19,7 +19,8 @@ flowchart TD
     playerInfo -->|"先广播本端 ASC / AS"| playerSignal["OnASCInitialized.Broadcast"]
     playerSignal -->|"服务端广播后"| startup["GiveStartupAbilities"]
     onRep["客户端 PlayerCharacter.OnRep_PlayerState"] -->|"本端引用就绪且 ASC 有效时"| clientInfo["InitAbilityActorInfo：PlayerState / 当前角色"]
-    clientInfo -->|"广播后结束客户端角色回调"| clientSignal["OnASCInitialized.Broadcast"]
+    clientInfo -->|"初始化后广播"| clientSignal["OnASCInitialized.Broadcast"]
+    clientSignal -->|"属性集转型成功后"| clientHealth["订阅 Health 变化"]
     enemy["EnemyCharacter 构造函数"] -->|"创建并持有，Minimal"| enemyAsc["敌人 ASC"]
     begin["EnemyCharacter.BeginPlay：各端"] -->|"本端 ASC 有效，Owner 与 Avatar 均为 this"| enemyInfo["InitAbilityActorInfo"]
     enemyAsc -->|"作为初始化目标"| enemyInfo
@@ -27,6 +28,7 @@ flowchart TD
     enemySignal -->|"仅 HasAuthority 为真时继续"| startup
     startup -->|"取得各自 ASC，遍历能力类构造 Spec"| give["ASC.GiveAbility"]
     startup -->|"服务端授予循环结束后"| initAttributes["InitializeAttributes"]
+    initAttributes -->|"属性集转型成功后"| serverHealth["订阅 Health 变化"]
     initAttributes -->|"创建等级 1 的 Spec 并应用到自身"| values["初始 GE 改变属性数据"]
 ```
 
@@ -54,40 +56,29 @@ flowchart TD
 
 这里存在自动激活的实际 C++ 处理代码，但尝试调用不保证成功。组件没有“一次性激活”记录或失败队列；具体实现见 [自定义 ASC](AbilitySystemComponent.md)。输入路径见 [PlayerController](../Player/PlayerController.md)。
 
-## 属性初始化通知与 Widget 绑定入口
+## 属性初始化与界面刷新
 
-| 类 / 函数 | 实际完成的事情 | 所属说明 |
-| --- | --- | --- |
-| BaseCharacters.InitializeAttributes | 在服务端应用配置的初始 GE | [角色基类](../Characters/CharacterBase.md) |
-| AttributeSet.PostGameplayEffectExecute | 本端首次执行回调时设置标记并广播 | [属性集](AttributeSet.md) |
-| AttributeSet.OnRep_AttributesInitialized | 标记为 true 时广播；当前标记缺少复制注册 | 同上 |
-| WidgetComponent.InitAbilitySystemData / OnSACInitialized | 取得或更新角色、ASC、属性集弱引用 | [Widget 组件](../UI/WidgetComponent.md) |
-| WidgetComponent.InitializeAttributeDelegate | 根据标记等待属性集通知，或直接进入绑定入口 | 同上 |
-| WidgetComponent.BindToAttributeChange | 函数体当前只有 TODO，尚未监听或刷新 | 同上 |
+| 所属类 | 入口与职责 |
+| --- | --- |
+| [角色基类](../Characters/CharacterBase.md) | InitializeAttributes 应用初始 GE，然后显式设置初始化标记 |
+| [属性集](AttributeSet.md) | 分别注册初始化标记与四项数值的复制 |
+| [控件组件](../UI/WidgetComponent.md) | 缓存引用、首次刷新、订阅属性委托与解绑 |
+| [属性控件](../UI/AttributeWidget.md) | 匹配属性对并向蓝图传递当前值与上限 |
 
 ```mermaid
 flowchart TD
-    widget["Widget.BeginPlay"] -->|"缓存角色、ASC 与 AS"| pointers{"缓存指针都有效？"}
-    pointers -->|"否"| bindRole["绑定角色 OnASCInitialized 并返回"]
-    role["角色本端 ActorInfo 初始化"] -->|"先广播 ASC / AS"| roleSignal["OnASCInitialized"]
-    bindRole -->|"等待本端角色通知"| callback["Widget.OnSACInitialized"]
-    roleSignal -->|"传递给已绑定组件"| callback
-    callback -->|"更新引用并确认有效"| prepare["InitializeAttributeDelegate"]
-    pointers -->|"是，直接调用"| prepare
-    prepare -->|"读取属性集本端标记"| ready{"bAttributesInitialized？"}
-    ready -->|"false"| wait["监听属性集 OnAttributesInitialized"]
-    ready -->|"true"| binding["BindToAttributeChange：当前 TODO"]
-    roleSignal -->|"服务端随后授予，再应用"| initial["InitializeAttributes"]
-    initial -->|"效果实际执行属性修改时"| post["AttributeSet.PostGameplayEffectExecute"]
-    post -->|"本端首次执行，设置 true 并广播"| attrSignal["OnAttributesInitialized"]
-    wait -->|"收到属性集通知时"| binding
-    attrSignal -->|"调用已绑定的 Widget 回调"| binding
-    post -.->|"标记尚未注册复制，客户端通知链不保证建立"| remote["OnRep_AttributesInitialized：客户端候选路径"]
+    role["角色本端 OnASCInitialized"] -->|"传入 ASC 与属性集，控件已订阅时"| bind["WidgetComponent 初始化绑定"]
+    begin["WidgetComponent.BeginPlay"] -->|"已有引用时直接尝试"| bind
+    bind -->|"匹配属性对后先读取快照，再监听"| display["AttributeWidget.OnAttributeChange"]
+    initial["服务端 InitializeAttributes"] -->|"初始 GE 修改属性"| values["服务端 ASC 属性变化"]
+    values -->|"本端已订阅时刷新"| display
+    values -->|"相应属性复制到客户端后执行 OnRep"| remote["客户端 ASC 属性变化"]
+    remote -->|"本端已订阅时刷新"| display
+    initial -->|"应用返回后显式置位"| mark["MarkAttributesInitialized"]
+    display -->|"传递当前值与上限"| event["BP_OnAttributeChange"]
 ```
 
-角色引用通知和属性集首次执行通知承担不同职责：前者传递 ASC / AS，后者记录一次本端效果执行。Widget 现在会衔接这两个阶段，但真正的数值变化监听与刷新仍未实现。
-
-服务端角色广播早于本次初始 GE 应用，授予回调的自动激活尝试也可能先于属性初值应用。属性集的首次广播不筛选初始化效果或检查全部属性，不能等同于完整初值就绪。客户端四项数值的复制与初始化布尔标记的复制也必须分别核对。
+属性集标记有独立的本端广播与复制通知。Widget 绑定依据是对象引用与控件实例，数值刷新来自快照和 ASC 委托。
 
 ## 能力类之间的关系
 
@@ -107,4 +98,4 @@ flowchart TD
 | 事件接收与缓存调用 | 目标 ASC 与能力蓝图；HitReact.CacheHitDirectionVector 调用时机待核验 |
 | 前后左右与名称 | BlueprintLibrary.GetHitDirection / GetHitDirectionName |
 
-初始化属性效果未配置时，检查 BaseCharacters 的 `InitializeAttributesEffect`；界面没有数值变化时，检查 Widget 的引用与属性通知两个阶段；BindToAttributeChange 仍未实现数值监听和刷新，客户端还需核对属性集标记的复制注册。
+界面绑定可从角色通知、根控件实例、`AttributeMap` 与 ASC 监听句柄逐项核对。生命值归零处理归入角色基类。

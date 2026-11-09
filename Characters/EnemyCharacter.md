@@ -68,6 +68,7 @@ flowchart TD
     startup -->|"遍历该敌人的 StartupAbilities"| spec["构造 FGameplayAbilitySpec"]
     spec -->|"将能力描述交给组件"| grant["敌人自身 ASC.GiveAbility"]
     grant -->|"授予循环结束后"| values["InitializeAttributes：应用初始 GE"]
+    values -->|"属性集转型成功后"| healthServer["订阅 Health 变化"]
 ```
 
 `BeginPlay()` 没有显式调用能力激活 API；其授予会进入 [自定义 ASC](../AbilitySystem/AbilitySystemComponent.md) 的 `OnGiveAbility()`，匹配 ActivateOnGiven 的能力会被尝试激活。是否发动具体攻击还取决于能力资产和激活结果。
@@ -89,13 +90,17 @@ flowchart TD
 
 ## 业务资产与核对点
 
-已确认以下文件存在于 `Content/GAS_Acquaintance/Blueprints/Characters/Enemy`：
+已确认以下文件存在于 `Content/GAS_Learning/Blueprints/Characters/Enemy`：
 
 - `BP_GAS_EnemyBase.uasset`、`BP_Enemy_Melee.uasset`、`BP_Enemy_Ranged.uasset`。
 - `Anim/ABP_Enemy_Melee.uasset`、`Anim/ABP_Enemy_Ranged.uasset`。
 
 这些是资源入口。蓝图是否派生自该 C++ 类、填入哪些启动能力、是否设置 Actor 复制及动画类，需要在编辑器核验。组件的 `SetIsReplicated(true)` 不能单独作为整套联网行为已验证的依据。
 
-当前敌人 C++ 没有 AI 决策、感知、寻路、目标选择、伤害或死亡逻辑。排查时先确认 `BeginPlay()` 初始化和服务端授予，再检查蓝图中的激活入口，不应从 Melee / Ranged 文件名推断这些功能已经实现。
+敌人的生命值回调复用基类存活状态处理。AI 行为与动画由对应资产配置，需在编辑器核验。
 
 参见：[角色基类](CharacterBase.md)、[玩家角色](PlayerCharacter.md)、[启动能力](../AbilitySystem/StartupAbilities.md)。
+
+## Health 委托的绑定位置
+
+`BeginPlay()` 在服务端初始属性应用之后绑定，客户端在权限分支处结束。 两条角色实现均要求属性集能转型为 `UGAS_AttributeSet`。成功后用 `AddUObject` 将 ASC 的 Health 变化委托交给基类 `OnHealthChanged()`。该绑定接收之后发生的变化，建立时没有主动读取当前 Health 执行死亡判断。参见 [角色基类](CharacterBase.md)。

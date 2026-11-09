@@ -1,8 +1,8 @@
 # UGAS_AttributeSet
 
-继承 `UAttributeSet`，定义生命与法力属性、访问器、数值复制通知，以及首次效果执行时的初始化标记与本端通知。
+继承 `UAttributeSet`，定义生命与法力属性、访问器、数值复制通知，以及显式初始化标记与本端通知。
 
-源码：`Source/GAS_Learning/AbilitySystem/GAS_AttributeSet.h`、`GAS_AttributeSet.cpp`。核对日期：2026-11-05。
+源码：`Source/GAS_Learning/AbilitySystem/GAS_AttributeSet.h`、`GAS_AttributeSet.cpp`。核对日期：2026-11-09。
 
 ## 头文件：属性与函数
 
@@ -20,8 +20,8 @@
 | 其他 public 声明 | 标记 / 类型 | 职责 |
 | --- | --- | --- |
 | OnAttributesInitialized | FAttributesInitialized，BlueprintAssignable | 无参数动态多播委托 |
-| bAttributesInitialized | bool，默认 false，ReplicatedUsing = OnRep_AttributesInitialized | 记录本端是否经历首次效果执行回调 |
-| PostGameplayEffectExecute(const FGameplayEffectModCallbackData&) | override | 先调用父类，首次执行时设置标记并广播 |
+| bAttributesInitialized | bool，默认 false，ReplicatedUsing = OnRep_AttributesInitialized | 记录角色初始化路径是否已设置标记 |
+| MarkAttributesInitialized() | 普通 C++ 函数 | 首次调用时置位并广播 |
 | OnRep_AttributesInitialized() | UFUNCTION | 标记复制回调；为 true 时广播 |
 
 `FAttributesInitialized` 在类外通过 `DECLARE_DYNAMIC_MULTICAST_DELEGATE` 声明。本类没有自定义构造函数、固定初始数值、范围钳制、死亡判断或伤害结算；属性名称不会自动建立 Health / MaxHealth 或 Mana / MaxMana 的数值约束。
@@ -61,6 +61,7 @@ void UGAS_AttributeSet::GetLifetimeReplicatedProps(TArray<class FLifetimePropert
     DOREPLIFETIME_CONDITION_NOTIFY(ThisClass,MaxHealth,COND_None,REPNOTIFY_Always);
     DOREPLIFETIME_CONDITION_NOTIFY(ThisClass,Mana,COND_None,REPNOTIFY_Always);
     DOREPLIFETIME_CONDITION_NOTIFY(ThisClass,MaxMana,COND_None,REPNOTIFY_Always);
+    DOREPLIFETIME(ThisClass,bAttributesInitialized);
 }
 ```
 
@@ -68,16 +69,15 @@ void UGAS_AttributeSet::GetLifetimeReplicatedProps(TArray<class FLifetimePropert
 
 这些属性有独立的复制声明，不能由 ASC 的 Mixed / Minimal GameplayEffect 复制模式直接推断它们不复制。
 
-**当前注册表只包含上述四项数值，没有包含 `bAttributesInitialized`。** 该布尔值虽然声明了 ReplicatedUsing，但缺少这里的复制注册，不能仅凭头文件认定客户端会接收到该标记并触发对应回调。四项数值复制成功也不等于此标记已经同步。
+标记与四项数值分别注册复制。客户端接收标记后，由 `OnRep_AttributesInitialized()` 在值为 true 时广播本端委托。数值各自有独立的复制通知。
 
-## PostGameplayEffectExecute：首次效果执行标记
+## MarkAttributesInitialized 与 OnRep_AttributesInitialized
 
-摘自 `GAS_AttributeSet.cpp`，保留完整函数，省略空行：
+以下摘自 `GAS_AttributeSet.cpp` 的完整 `MarkAttributesInitialized()`。
 
 ```cpp
-void UGAS_AttributeSet::PostGameplayEffectExecute(const struct FGameplayEffectModCallbackData& Data)
+void UGAS_AttributeSet::MarkAttributesInitialized()
 {
-    Super::PostGameplayEffectExecute(Data);
     if (!bAttributesInitialized)
     {
         bAttributesInitialized = true;
@@ -86,42 +86,17 @@ void UGAS_AttributeSet::PostGameplayEffectExecute(const struct FGameplayEffectMo
 }
 ```
 
-代码不筛选是哪一种 GE 或哪一项属性，也没有逐项检查四个数值。它表达的是“本端首次进入效果执行后的回调”，不是“指定初始化 GE 已完整执行、全部属性已可用于显示”。广播发生在这个回调内部；若一个效果依次执行多个属性修改，不能据首次广播推断其余修改已全部完成。
-
-本机 UE 5.6 的 `AttributeSet.h` 明确将此回调限定为效果执行对属性 BaseValue 的修改；仅应用持续修饰型效果不保证进入该回调。因此不能只凭 `ApplyGameplayEffectSpecToSelf()` 已调用，就认定本标记一定会置为 true；还需核验初始化 GE 的配置。
-
-标记一旦为 true，本函数后续执行不再广播；它不承担持续的属性变化监听。角色当前在服务端调用初始化 GE，但本函数自身没有权限分支，读取规则以本端实际执行为准。
-
-## OnRep_AttributesInitialized：标记复制通知
-
-摘自同一 `.cpp`，保留完整函数：
-
-```cpp
-void UGAS_AttributeSet::OnRep_AttributesInitialized()
-{
-    if (bAttributesInitialized)
-    {
-        OnAttributesInitialized.Broadcast();
-    }
-}
-```
-
-它在标记为 true 时广播同一个本端委托。当前标记没有加入 `GetLifetimeReplicatedProps()`，因此本页把这条客户端路径标为复制注册待补齐的关系；当前源码没有在四个数值 OnRep 中替代触发这个初始化通知。
+角色基类在初始 GE 应用调用返回后显式标记。属性集按 false 到 true 的转换广播一次，本地 Widget 组件通过角色通知与 ASC 数值委托建立刷新链路。
 
 ```mermaid
 flowchart TD
-    effect["本端 GameplayEffect 执行属性修改"] -->|"引擎回调，先执行父类"| post["PostGameplayEffectExecute"]
-    post -->|"检查本端标记"| first{"bAttributesInitialized 为 false？"}
-    first -->|"是"| setFlag["设置 true"]
-    setFlag -->|"本端立即广播"| signal["OnAttributesInitialized"]
-    first -->|"否"| done["本次不再广播初始化通知"]
-    setFlag -.->|"当前缺少 bAttributesInitialized 复制注册"| replication["客户端标记同步：待补齐"]
-    replication -.->|"只有标记实际复制并触发通知时"| onRep["OnRep_AttributesInitialized"]
-    onRep -->|"本端标记为 true 时广播"| signal
-    signal -->|"通知已绑定的 Widget"| widget["BindToAttributeChange：当前 TODO"]
+    role["服务端角色 InitializeAttributes"] -->|"初始 GE 应用返回且属性集转型成功"| mark["MarkAttributesInitialized"]
+    mark -->|"首次置为 true"| local["服务端本端 OnAttributesInitialized"]
+    mark -->|"布尔值已注册复制"| flag["客户端 OnRep_AttributesInitialized"]
+    flag -->|"收到 true 时广播"| remote["客户端本端 OnAttributesInitialized"]
+    numeric["客户端四项属性各自的 OnRep"] -->|"GAMEPLAYATTRIBUTE_REPNOTIFY"| asc["本端 ASC 属性变化"]
+    asc -->|"已绑定时刷新"| widget["WidgetComponent 的属性监听"]
 ```
-
-实线是函数内已确认的处理；虚线说明复制声明与实际注册之间的缺口，不表示可靠的跨端完成顺序。
 
 ## OnRep_Health、OnRep_MaxHealth、OnRep_Mana、OnRep_MaxMana
 
@@ -153,4 +128,4 @@ flowchart TD
     notify -->|"GAMEPLAYATTRIBUTE_REPNOTIFY"| asc["所属 ASC 协调属性复制数据"]
 ```
 
-具体初值由 `InitializeAttributesEffect` 指向的 GE 内容决定，资产数值和角色默认引用待编辑器核验。相关函数见 [AGAS_BaseCharacters](../Characters/CharacterBase.md)，UI 的引用缓存与属性通知衔接见 [UGAS_WidgetComponent](../UI/WidgetComponent.md)。
+具体初值由 `InitializeAttributesEffect` 指向的 GE 内容决定，资产数值和角色默认引用待编辑器核验。相关函数见 [AGAS_BaseCharacters](../Characters/CharacterBase.md)，UI 的引用缓存与数值监听见 [UGAS_WidgetComponent](../UI/WidgetComponent.md)。

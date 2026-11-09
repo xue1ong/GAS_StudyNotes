@@ -32,7 +32,7 @@
 | `SecondaryAction` | `IA_Secondary` | 次能力入口 |
 | `TertiaryAction` | `IA_Tertiary` | 第三能力入口 |
 
-上述资源已确认存在于 `Content/GAS_Acquaintance/Blueprints/Input`，属性的实际引用、Action 值类型、具体键位和 Modifier 需在编辑器核验。
+上述资源已确认存在于 `Content/GAS_Learning/Blueprints/Input`，属性的实际引用、Action 值类型、具体键位和 Modifier 需在编辑器核验。
 
 `SetupInputComponent()` 先调用父类，然后取得 `UEnhancedInputLocalPlayerSubsystem`，将数组中的每个 Context 以优先级 `0` 加入，再把 `InputComponent` 转型为 `UEnhancedInputComponent` 并绑定输入。取得子系统或转型失败都会提前返回。
 
